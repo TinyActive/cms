@@ -62,12 +62,12 @@
     "nodemailer": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@prisma/client": "latest",
     "prisma": "latest",
     "typescript": "latest",
-    "@prisma/client": "latest",
     "next-auth": "latest",
-    "bcryptjs": "latest",
-    "@auth/prisma-adapter": "latest"
+    "@auth/prisma-adapter": "latest",
+    "bcryptjs": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

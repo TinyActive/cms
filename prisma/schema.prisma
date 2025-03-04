@@ -129,3 +129,10 @@ model Activity {
   firewall  Firewall? @relation(fields: [firewallId], references: [id])
 }
 
+model DigitalOceanToken {
+  id        String   @id @default(cuid())
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
