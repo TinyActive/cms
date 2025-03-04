@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  roleId        String
+  role          Role      @relation(fields: [roleId], references: [id])
+  accounts      Account[]
+  sessions      Session[]
+  activities    Activity[]
+  droplets      Droplet[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+model Droplet {
+  id            String   @id @default(cuid())
+  digitalOceanId String?
+  name          String
+  status        String
+  ip            String?
+  region        String
+  size          String
+  image         String
+  cpu           Int      @default(0)
+  memory        Int      @default(0)
+  disk          Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  firewalls     FirewallDroplet[]
+  activities    Activity[]
+}
+
+model Firewall {
+  id            String   @id @default(cuid())
+  digitalOceanId String?
+  name          String
+  status        String
+  inboundRules  Json
+  outboundRules Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  droplets      FirewallDroplet[]
+  activities    Activity[]
+}
+
+model FirewallDroplet {
+  id         String   @id @default(cuid())
+  firewallId String
+  dropletId  String
+  createdAt  DateTime @default(now())
+  firewall   Firewall @relation(fields: [firewallId], references: [id], onDelete: Cascade)
+  droplet    Droplet  @relation(fields: [dropletId], references: [id], onDelete: Cascade)
+
+  @@unique([firewallId, dropletId])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  dropletId String?
+  droplet   Droplet? @relation(fields: [dropletId], references: [id])
+  firewallId String?
+  firewall  Firewall? @relation(fields: [firewallId], references: [id])
+}
+
