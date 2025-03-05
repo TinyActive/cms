@@ -1,58 +1,56 @@
-"use client"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useSession } from "next-auth/react"
-import { hasPermission, hasAnyPermission } from "@/lib/permissions"
-import { PERMISSIONS, ROLES } from "@/lib/permissions"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Switch } from "@/components/ui/switch"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { toast } from "@/components/ui/use-toast"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "@/lib/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
 
 // Types for our data
 interface ServerTemplate {
-  id: string
-  name: string
-  cpu: number
-  ram: number
-  disk: number
-  price: number
-  isActive: boolean
+  id: string;
+  name: string;
+  cpu: number;
+  ram: number;
+  disk: number;
+  price: number;
+  isActive: boolean;
 }
 
 interface UserRole {
-  id: string
-  name: string
-  maxServers: number
-  allowedServerTypes: string[]
+  id: string;
+  name: string;
+  maxServers: number;
+  allowedServerTypes: string[];
 }
 
 interface ServerRegion {
-  id: string
-  name: string
-  location: string
-  isActive: boolean
-  isAdminOnly: boolean
+  id: string;
+  name: string;
+  location: string;
+  isActive: boolean;
+  isAdminOnly: boolean;
 }
 
 export default function ServerConfigPage() {
-  const { data: session } = useSession()
-  const router = useRouter()
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [serverTemplates, setServerTemplates] = useState<ServerTemplate[]>([])
-  const [userRoles, setUserRoles] = useState<UserRole[]>([])
-  const [serverRegions, setServerRegions] = useState<ServerRegion[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [serverTemplates, setServerTemplates] = useState<ServerTemplate[]>([]);
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [serverRegions, setServerRegions] = useState<ServerRegion[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     cpu: 1,
@@ -61,7 +59,7 @@ export default function ServerConfigPage() {
     price: 5,
     isActive: true,
     availableRoles: [] as string[]
-  })
+  });
 
   // Kiểm tra xem người dùng có phải admin không
   useEffect(() => {
@@ -137,7 +135,7 @@ export default function ServerConfigPage() {
           </CardFooter>
         </Card>
       </div>
-    )
+    );
   }
 
   // Handle form input changes
@@ -433,7 +431,7 @@ export default function ServerConfigPage() {
             </CardContent>
           </Card>
 
-          {selectedTemplate !== null || formData.name !== "" ? (
+          {(selectedTemplate !== null || formData.name !== "") && (
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -724,5 +722,5 @@ export default function ServerConfigPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
-}
+  );
+} 
