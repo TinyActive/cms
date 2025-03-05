@@ -68,7 +68,7 @@ const sidebarLinks = [
 export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const userPermissions = session?.user?.permissions || []
+  const userPermissions = session?.user?.permissions || ''
 
   // Filter links based on user permissions
   const filteredLinks = sidebarLinks.filter(

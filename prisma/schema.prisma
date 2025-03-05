@@ -25,6 +25,10 @@ model User {
   sessions      Session[]
   activities    Activity[]
   droplets      Droplet[]
+  balance     Float     @default(0)
+  transactions Transaction[]
+  vps         VPS[]
+  telegramNotifications TelegramNotification[]
 }
 
 model Account {
@@ -66,7 +70,7 @@ model Role {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  permissions String[]
+  permissions String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   users       User[]
@@ -134,5 +138,36 @@ model DigitalOceanToken {
   token     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  amount    Float
+  type      String   // 'DEPOSIT' or 'WITHDRAWAL'
+  status    String   // 'PENDING', 'COMPLETED', 'FAILED'
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model VPS {
+  id              String   @id @default(cuid())
+  digitalOceanId  String
+  name            String
+  status          String
+  ip              String?
+  region          String
+  size            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model TelegramNotification {
+  id        String   @id @default(cuid())
+  chatId    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
 }
 

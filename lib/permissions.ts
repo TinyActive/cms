@@ -56,15 +56,18 @@ export const DEFAULT_ROLE_PERMISSIONS = {
   [ROLES.READONLY]: [PERMISSIONS.VIEW_DROPLETS, PERMISSIONS.VIEW_FIREWALLS],
 }
 
-export function hasPermission(userPermissions: string[], permission: string): boolean {
-  return userPermissions.includes(permission)
+export function hasPermission(userPermissions: string, permission: string): boolean {
+  const permissions = JSON.parse(userPermissions || '[]') as string[]
+  return permissions.includes(permission)
 }
 
-export function hasAnyPermission(userPermissions: string[], permissions: string[]): boolean {
-  return permissions.some((permission) => userPermissions.includes(permission))
+export function hasAnyPermission(userPermissions: string, permissions: string[]): boolean {
+  const userPerms = JSON.parse(userPermissions || '[]') as string[]
+  return permissions.some((permission) => userPerms.includes(permission))
 }
 
-export function hasAllPermissions(userPermissions: string[], permissions: string[]): boolean {
-  return permissions.every((permission) => userPermissions.includes(permission))
+export function hasAllPermissions(userPermissions: string, permissions: string[]): boolean {
+  const userPerms = JSON.parse(userPermissions || '[]') as string[]
+  return permissions.every((permission) => userPerms.includes(permission))
 }
 

@@ -75,5 +75,84 @@ export async function PATCH(
       );
     }
 
-// Check if\
+    // Prepare update data
+    const updateData: any = {};
+    
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (roleId) updateData.roleId = roleId;
+    
+    // Update user
+    const updatedUser = await db.user.update({
+      where: {
+        id: params.userId,
+      },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({ user: updatedUser });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return NextResponse.json(
+      { message: "Something went wrong" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { userId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user || !hasPermission(session.user.permissions, PERMISSIONS.DELETE_USER)) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
+    // Check if user exists
+    const existingUser = await db.user.findUnique({
+      where: {
+        id: params.userId,
+      },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete user
+    await db.user.delete({
+      where: {
+        id: params.userId,
+      },
+    });
+
+    return NextResponse.json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    return NextResponse.json(
+      { message: "Something went wrong" },
+      { status: 500 }
+    );
+  }
+}
 

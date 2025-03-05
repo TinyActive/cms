@@ -13,14 +13,14 @@ interface PermissionGuardProps {
 export function PermissionGuard({ permission, children, fallback = null }: PermissionGuardProps) {
   const { data: session } = useSession()
 
-  if (!session?.user) {
-    return fallback
+  if (!session || !session.user) {
+    return null
   }
 
-  const userPermissions = session.user.permissions || []
+  const userPermissions = session.user.permissions || ''
 
   if (!hasPermission(userPermissions, permission)) {
-    return fallback
+    return null
   }
 
   return <>{children}</>
