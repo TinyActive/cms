@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { PrismaClient } from "@prisma/client"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-
-const prisma = new PrismaClient()
+import { db } from "@/lib/db"
 
 // GET /api/server-templates - Lấy tất cả server templates
 export async function GET() {
@@ -16,12 +14,12 @@ export async function GET() {
     }
     
     // Lấy tất cả server templates
-    const templates = await prisma.serverTemplate.findMany({
+    const templates = await db.serverTemplate.findMany({
       orderBy: { name: 'asc' },
     })
     
     // Lấy thông tin về quyền truy cập của từng role
-    const roleTemplates = await prisma.roleServerTemplate.findMany({
+    const roleTemplates = await db.roleServerTemplate.findMany({
       include: {
         role: true,
       },
@@ -32,8 +30,6 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching server templates:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -61,7 +57,7 @@ export async function POST(request: Request) {
     }
     
     // Tạo server template mới
-    const template = await prisma.serverTemplate.create({
+    const template = await db.serverTemplate.create({
       data: {
         name: data.name,
         cpu: data.cpu,
@@ -80,7 +76,7 @@ export async function POST(request: Request) {
         maxServers: 10, // Default value
       }))
       
-      await prisma.roleServerTemplate.createMany({
+      await db.roleServerTemplate.createMany({
         data: roleLinks,
       })
     }
@@ -89,7 +85,5 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating server template:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 } 

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { PrismaClient } from "@prisma/client"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-
-const prisma = new PrismaClient()
+import { db } from "@/lib/db"
 
 // GET /api/server-regions - Lấy tất cả server regions
 export async function GET() {
@@ -16,7 +14,7 @@ export async function GET() {
     }
     
     // Lấy tất cả server regions
-    const regions = await prisma.serverRegion.findMany({
+    const regions = await db.serverRegion.findMany({
       orderBy: { name: 'asc' },
     })
     
@@ -24,8 +22,6 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching server regions:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -53,7 +49,7 @@ export async function POST(request: Request) {
     }
     
     // Kiểm tra xem region đã tồn tại chưa
-    const existingRegion = await prisma.serverRegion.findFirst({
+    const existingRegion = await db.serverRegion.findFirst({
       where: { name: data.name },
     })
     
@@ -62,7 +58,7 @@ export async function POST(request: Request) {
     }
     
     // Tạo server region mới
-    const region = await prisma.serverRegion.create({
+    const region = await db.serverRegion.create({
       data: {
         name: data.name,
         location: data.location,
@@ -75,7 +71,5 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating server region:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 } 

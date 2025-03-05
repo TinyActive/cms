@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { PrismaClient } from "@prisma/client"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-
-const prisma = new PrismaClient()
+import { db } from "@/lib/db"
 
 // GET /api/roles - Lấy tất cả roles và thông tin về quyền hạn
 export async function GET() {
@@ -16,12 +14,12 @@ export async function GET() {
     }
     
     // Lấy tất cả roles
-    const roles = await prisma.role.findMany({
+    const roles = await db.role.findMany({
       orderBy: { name: 'asc' },
     })
     
     // Lấy thông tin về server templates được phép cho mỗi role
-    const roleTemplates = await prisma.roleServerTemplate.findMany({
+    const roleTemplates = await db.roleServerTemplate.findMany({
       include: {
         serverTemplate: true,
       },
@@ -45,8 +43,6 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching roles:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -61,7 +57,7 @@ export async function POST(req: Request) {
     const { name, description, permissions } = await req.json()
 
     // Check if role already exists
-    const existingRole = await prisma.role.findUnique({
+    const existingRole = await db.role.findUnique({
       where: {
         name,
       },
@@ -72,7 +68,7 @@ export async function POST(req: Request) {
     }
 
     // Create the role
-    const role = await prisma.role.create({
+    const role = await db.role.create({
       data: {
         name,
         description,
@@ -81,7 +77,7 @@ export async function POST(req: Request) {
     })
 
     // Create activity log
-    await prisma.activity.create({
+    await db.activity.create({
       data: {
         action: "role_created",
         userId: session.user.id,
