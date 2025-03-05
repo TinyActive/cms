@@ -2,88 +2,70 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-import { db, hasModel } from "@/lib/db"
+import { db, hasModel, safeQuery, checkConnection } from "@/lib/db"
 import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
 
 // GET /api/server-templates - Lấy tất cả server templates
 export async function GET() {
+  // Kiểm tra kết nối đến database
+  const connected = await checkConnection();
+  if (!connected) {
+    return NextResponse.json({ 
+      error: "Database connection failed", 
+    }, { status: 503 });
+  }
+  
   try {
-    // Kiểm tra kết nối cơ bản
-    await db.$queryRaw`SELECT 1`;
-    
-    // Liệt kê các models có sẵn để debug
-    const availableModels = Object.keys(db)
-      .filter(k => !k.startsWith('$') && typeof db[k] === 'object');
-    console.log("Available models:", availableModels);
-    
-    // Kiểm tra model
-    const templateModelExists = hasModel('serverTemplate');
-    const regionModelExists = hasModel('serverRegion');
-    
-    if (!templateModelExists) {
-      return NextResponse.json({ 
-        error: "ServerTemplate model not found", 
-        availableModels: availableModels
-      }, { status: 500 });
-    }
-    
+    // Kiểm tra session
     const session = await getServerSession();
     
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    // Lấy tất cả server templates
-    const templates = await db.serverTemplate.findMany({
-      orderBy: { name: 'asc' },
-    });
+    // Kiểm tra model
+    const templateModelExists = hasModel('serverTemplate');
     
-    // Nếu cần thông tin region, chúng ta cần truy vấn riêng
-    let templatesWithRegion = templates;
-    
-    // Nếu regionId tồn tại trong serverTemplate và model region tồn tại
-    if (regionModelExists) {
-      try {
-        // Kiểm tra xem serverTemplate có trường regionId không
-        const hasRegionId = await db.$queryRaw`
-          SELECT COLUMN_NAME 
-          FROM INFORMATION_SCHEMA.COLUMNS 
-          WHERE TABLE_SCHEMA = 'cms' 
-          AND TABLE_NAME = 'ServerTemplate' 
-          AND COLUMN_NAME = 'regionId'
-        `;
-        
-        // Nếu có trường regionId, lấy thông tin region cho mỗi template
-        if (Array.isArray(hasRegionId) && hasRegionId.length > 0) {
-          templatesWithRegion = await Promise.all(templates.map(async (template) => {
-            if (template.regionId) {
-              const region = await db.serverRegion.findUnique({
-                where: { id: template.regionId },
-              });
-              return { ...template, region };
-            }
-            return template;
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching region data:", error);
-        // Vẫn trả về template mà không có region
-      }
+    if (!templateModelExists) {
+      return NextResponse.json({ 
+        error: "ServerTemplate model not found"
+      }, { status: 500 });
     }
     
-    return NextResponse.json(templatesWithRegion);
+    // Sử dụng safeQuery để lấy tất cả server templates
+    const { data: templates, error: templatesError } = await safeQuery(() => 
+      db.serverTemplate.findMany({
+        orderBy: { name: 'asc' },
+      })
+    );
+    
+    if (templatesError || !templates) {
+      return NextResponse.json({ 
+        error: "Error fetching server templates", 
+        message: templatesError?.message 
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json(templates);
   } catch (error) {
     console.error("Error fetching server templates:", error);
     return NextResponse.json({ 
       error: "Error fetching server templates", 
       message: error.message,
-      stack: error.stack 
     }, { status: 500 });
   }
 }
 
 // POST /api/server-templates - Tạo server template mới
 export async function POST(request: Request) {
+  // Kiểm tra kết nối đến database
+  const connected = await checkConnection();
+  if (!connected) {
+    return NextResponse.json({ 
+      error: "Database connection failed", 
+    }, { status: 503 });
+  }
+  
   try {
     const session = await getServerSession()
     
@@ -105,34 +87,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid data" }, { status: 400 })
     }
     
-    // Tạo server template mới
-    const template = await db.serverTemplate.create({
-      data: {
-        name: data.name,
-        cpu: data.cpu,
-        ram: data.ram,
-        disk: data.disk,
-        price: data.price,
-        isActive: data.isActive ?? true,
-      },
-    })
+    // Sử dụng safeQuery để tạo server template mới
+    const { data: template, error: templateError } = await safeQuery(() => 
+      db.serverTemplate.create({
+        data: {
+          name: data.name,
+          cpu: data.cpu,
+          ram: data.ram,
+          disk: data.disk,
+          price: data.price,
+          isActive: data.isActive ?? true,
+        },
+      })
+    );
+    
+    if (templateError || !template) {
+      return NextResponse.json({ 
+        error: "Error creating server template", 
+        message: templateError?.message 
+      }, { status: 500 });
+    }
     
     // Tạo liên kết với các role
-    if (data.availableRoles && Array.isArray(data.availableRoles)) {
+    if (data.availableRoles && Array.isArray(data.availableRoles) && data.availableRoles.length > 0) {
       const roleLinks = data.availableRoles.map((roleId: string) => ({
         roleId,
         serverTemplateId: template.id,
         maxServers: 10, // Default value
       }))
       
-      await db.roleServerTemplate.createMany({
-        data: roleLinks,
-      })
+      const { error: rolesError } = await safeQuery(() => 
+        db.roleServerTemplate.createMany({
+          data: roleLinks,
+        })
+      );
+      
+      if (rolesError) {
+        console.error("Error linking roles:", rolesError);
+        // Không trả về lỗi vì server template đã được tạo
+      }
     }
     
     return NextResponse.json(template, { status: 201 })
   } catch (error) {
     console.error("Error creating server template:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      message: error.message
+    }, { status: 500 })
   }
 } 

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-import { db, hasModel } from "@/lib/db"
+import { db, hasModel, safeQuery, checkConnection } from "@/lib/db"
+import { handlePrismaError } from "@/lib/api-utils"
 
 // Hàm xử lý BigInt trước khi serialize
 const serializeData = (data: any): any => {
@@ -20,61 +21,62 @@ const serializeData = (data: any): any => {
 
 // GET /api/server-regions - Lấy tất cả server regions
 export async function GET() {
+  // Kiểm tra kết nối đến database
+  const connected = await checkConnection();
+  if (!connected) {
+    return NextResponse.json({ 
+      error: "Database connection failed", 
+    }, { status: 503 });
+  }
+  
   try {
-    // Kiểm tra kết nối cơ bản
-    await db.$queryRaw`SELECT 1`;
-    
-    console.log("Available models:", Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object'));
-    
-    // Kiểm tra model
-    const regionModelExists = hasModel('serverRegion');
-    
-    if (!regionModelExists) {
-      return NextResponse.json({ 
-        error: "ServerRegion model not found", 
-        availableModels: Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object') 
-      }, { status: 500 });
-    }
-    
+    // Kiểm tra session
     const session = await getServerSession();
     
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    // Lấy tất cả server regions
-    const regions = await db.serverRegion.findMany({
-      orderBy: { name: 'asc' },
-    });
-    
-    // Serialize data trước khi trả về
-    return NextResponse.json(serializeData(regions));
-  } catch (error) {
-    console.error("Error fetching server regions:", error);
-    return NextResponse.json({ 
-      error: "Error fetching server regions", 
-      message: error.message,
-      stack: error.stack
-    }, { status: 500 });
-  }
-}
-
-// POST /api/server-regions - Tạo server region mới
-export async function POST(request: Request) {
-  try {
-    // Kiểm tra kết nối cơ bản
-    await db.$queryRaw`SELECT 1`;
-    
     // Kiểm tra model
     const regionModelExists = hasModel('serverRegion');
     
     if (!regionModelExists) {
       return NextResponse.json({ 
-        error: "ServerRegion model not found", 
-        availableModels: Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object') 
+        error: "ServerRegion model not found"
       }, { status: 500 });
     }
     
+    // Sử dụng safeQuery để lấy tất cả server regions
+    const { data: regions, error: regionsError } = await safeQuery(() => 
+      db.serverRegion.findMany({
+        orderBy: { name: 'asc' },
+      })
+    );
+    
+    if (regionsError || !regions) {
+      return NextResponse.json({ 
+        error: "Error fetching server regions", 
+        message: regionsError?.message 
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json(serializeData(regions));
+  } catch (error) {
+    return handlePrismaError(error);
+  }
+}
+
+// POST /api/server-regions - Tạo server region mới
+export async function POST(request: Request) {
+  // Kiểm tra kết nối đến database
+  const connected = await checkConnection();
+  if (!connected) {
+    return NextResponse.json({ 
+      error: "Database connection failed", 
+    }, { status: 503 });
+  }
+  
+  try {
     const session = await getServerSession();
     
     if (!session?.user) {
@@ -92,35 +94,30 @@ export async function POST(request: Request) {
     
     // Validate dữ liệu
     if (!data.name || !data.location) {
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid data: name and location are required" }, { status: 400 });
     }
     
-    // Kiểm tra xem region đã tồn tại chưa
-    const existingRegion = await db.serverRegion.findFirst({
-      where: { name: data.name },
-    });
+    // Sử dụng safeQuery để tạo server region mới
+    const { data: region, error: regionError } = await safeQuery(() => 
+      db.serverRegion.create({
+        data: {
+          name: data.name,
+          location: data.location,
+          isActive: data.isActive ?? true,
+          isAdminOnly: data.isAdminOnly ?? false,
+        },
+      })
+    );
     
-    if (existingRegion) {
-      return NextResponse.json({ error: "Region already exists" }, { status: 409 });
+    if (regionError || !region) {
+      return NextResponse.json({ 
+        error: "Error creating server region", 
+        message: regionError?.message 
+      }, { status: 500 });
     }
     
-    // Tạo server region mới
-    const region = await db.serverRegion.create({
-      data: {
-        name: data.name,
-        location: data.location,
-        isActive: data.isActive ?? true,
-        isAdminOnly: data.isAdminOnly ?? false,
-      },
-    });
-    
-    return NextResponse.json(region, { status: 201 });
+    return NextResponse.json(serializeData(region), { status: 201 });
   } catch (error) {
-    console.error("Error creating server region:", error);
-    return NextResponse.json({ 
-      error: "Error creating server region", 
-      message: error.message,
-      stack: error.stack
-    }, { status: 500 });
+    return handlePrismaError(error);
   }
 } 
