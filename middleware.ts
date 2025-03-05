@@ -3,6 +3,11 @@ import { getToken } from "next-auth/jwt"
 import type { NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
+  // Allow access to API routes without authentication
+  if (request.nextUrl.pathname.startsWith('/api/auth')) {
+    return NextResponse.next()
+  }
+
   const token = await getToken({ req: request })
   const isAuthenticated = !!token
   const isAuthPage =
