@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,24 +8,26 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  password      String
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  roleId        String
-  role          Role      @relation(fields: [roleId], references: [id])
-  accounts      Account[]
-  sessions      Session[]
-  activities    Activity[]
-  droplets      Droplet[]
-  balance     Float     @default(0)
-  transactions Transaction[]
-  vps         VPS[]
+  id                    String                 @id @default(cuid())
+  name                  String
+  email                 String                 @unique
+  password              String
+  emailVerified         DateTime?
+  image                 String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  roleId                String
+  balance               Float                  @default(0)
+  accounts              Account[]
+  activities            Activity[]
+  droplets              Droplet[]
+  sessions              Session[]
   telegramNotifications TelegramNotification[]
+  transactions          Transaction[]
+  role                  Role                   @relation(fields: [roleId], references: [id])
+  vps                   VPS[]
+
+  @@index([roleId], map: "User_roleId_fkey")
 }
 
 model Account {
@@ -44,10 +43,10 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId], map: "Account_userId_fkey")
 }
 
 model Session {
@@ -56,6 +55,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_userId_fkey")
 }
 
 model VerificationToken {
@@ -67,48 +68,50 @@ model VerificationToken {
 }
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  permissions String   @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       User[]
+  id              String               @id @default(cuid())
+  name            String               @unique
+  description     String?
+  permissions     String               @db.Text
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  maxServers      Int                  @default(3)
   serverTemplates RoleServerTemplate[]
-  maxServers  Int      @default(3)
+  users           User[]
 }
 
 model Droplet {
-  id            String   @id @default(cuid())
+  id             String            @id @default(cuid())
   digitalOceanId String?
-  name          String
-  status        String
-  ip            String?
-  region        String
-  size          String
-  image         String
-  cpu           Int      @default(0)
-  memory        Int      @default(0)
-  disk          Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  firewalls     FirewallDroplet[]
-  activities    Activity[]
+  name           String
+  status         String
+  ip             String?
+  region         String
+  size           String
+  image          String
+  cpu            Int               @default(0)
+  memory         Int               @default(0)
+  disk           Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  userId         String
+  activities     Activity[]
+  user           User              @relation(fields: [userId], references: [id])
+  firewalls      FirewallDroplet[]
+
+  @@index([userId], map: "Droplet_userId_fkey")
 }
 
 model Firewall {
-  id            String   @id @default(cuid())
+  id             String            @id @default(cuid())
   digitalOceanId String?
-  name          String
-  status        String
-  inboundRules  Json
-  outboundRules Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  droplets      FirewallDroplet[]
-  activities    Activity[]
+  name           String
+  status         String
+  inboundRules   Json
+  outboundRules  Json
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  activities     Activity[]
+  droplets       FirewallDroplet[]
 }
 
 model FirewallDroplet {
@@ -116,23 +119,28 @@ model FirewallDroplet {
   firewallId String
   dropletId  String
   createdAt  DateTime @default(now())
-  firewall   Firewall @relation(fields: [firewallId], references: [id], onDelete: Cascade)
   droplet    Droplet  @relation(fields: [dropletId], references: [id], onDelete: Cascade)
+  firewall   Firewall @relation(fields: [firewallId], references: [id], onDelete: Cascade)
 
   @@unique([firewallId, dropletId])
+  @@index([dropletId], map: "FirewallDroplet_dropletId_fkey")
 }
 
 model Activity {
-  id        String   @id @default(cuid())
-  action    String
-  details   Json?
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  dropletId String?
-  droplet   Droplet? @relation(fields: [dropletId], references: [id])
+  id         String    @id @default(cuid())
+  action     String
+  details    Json?
+  createdAt  DateTime  @default(now())
+  userId     String
+  dropletId  String?
   firewallId String?
-  firewall  Firewall? @relation(fields: [firewallId], references: [id])
+  droplet    Droplet?  @relation(fields: [dropletId], references: [id])
+  firewall   Firewall? @relation(fields: [firewallId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([dropletId], map: "Activity_dropletId_fkey")
+  @@index([firewallId], map: "Activity_firewallId_fkey")
+  @@index([userId], map: "Activity_userId_fkey")
 }
 
 model DigitalOceanToken {
@@ -145,67 +153,73 @@ model DigitalOceanToken {
 model Transaction {
   id        String   @id @default(cuid())
   amount    Float
-  type      String   // 'DEPOSIT' or 'WITHDRAWAL'
-  status    String   // 'PENDING', 'COMPLETED', 'FAILED'
+  type      String
+  status    String
   createdAt DateTime @default(now())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "Transaction_userId_fkey")
 }
 
 model VPS {
-  id              String   @id @default(cuid())
-  digitalOceanId  String
-  name            String
-  status          String
-  ip              String?
-  region          String
-  size            String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
+  id             String   @id @default(cuid())
+  digitalOceanId String
+  name           String
+  status         String
+  ip             String?
+  region         String
+  size           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "VPS_userId_fkey")
 }
 
 model TelegramNotification {
-  id        String   @id @default(cuid())
-  chatId    String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  chatId String
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "TelegramNotification_userId_fkey")
 }
 
 model ServerTemplate {
-  id            String   @id @default(cuid())
-  name          String
-  cpu           Int
-  ram           Int
-  disk          Int
-  price         Float
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String               @id @default(cuid())
+  name            String
+  cpu             Int
+  ram             Int
+  disk            Int
+  price           Float
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   rolePermissions RoleServerTemplate[]
 }
 
 model RoleServerTemplate {
-  id             String   @id @default(cuid())
-  roleId         String
+  id               String         @id @default(cuid())
+  roleId           String
   serverTemplateId String
-  maxServers     Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  role           Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  serverTemplate ServerTemplate @relation(fields: [serverTemplateId], references: [id], onDelete: Cascade)
+  maxServers       Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  role             Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  serverTemplate   ServerTemplate @relation(fields: [serverTemplateId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, serverTemplateId])
+  @@index([serverTemplateId], map: "RoleServerTemplate_serverTemplateId_fkey")
 }
 
 model ServerRegion {
-  id            String   @id @default(cuid())
-  name          String
-  location      String
-  isActive      Boolean  @default(true)
-  isAdminOnly   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  location    String
+  isActive    Boolean  @default(true)
+  isAdminOnly Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
-
