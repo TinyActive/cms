@@ -2,54 +2,99 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-import { db } from "@/lib/db"
+import { db, hasModel } from "@/lib/db"
 import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
 
 // GET /api/server-templates - Lấy tất cả server templates
 export async function GET() {
-  // Kiểm tra kết nối trước khi xử lý
-  const isConnected = await checkDatabaseConnection();
-  if (!isConnected) {
-    return NextResponse.json({ error: "Database connection failed" }, { status: 503 });
-  }
-
-  return apiHandler(async () => {
-    const session = await getServerSession()
+  try {
+    // Kiểm tra kết nối cơ bản
+    await db.$queryRaw`SELECT 1`;
+    
+    // Liệt kê các models có sẵn để debug
+    const availableModels = Object.keys(db)
+      .filter(k => !k.startsWith('$') && typeof db[k] === 'object');
+    console.log("Available models:", availableModels);
+    
+    // Kiểm tra model
+    const templateModelExists = hasModel('serverTemplate');
+    const regionModelExists = hasModel('serverRegion');
+    
+    if (!templateModelExists) {
+      return NextResponse.json({ 
+        error: "ServerTemplate model not found", 
+        availableModels: availableModels
+      }, { status: 500 });
+    }
+    
+    const session = await getServerSession();
     
     if (!session?.user) {
-      throw new Error("Unauthorized");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     // Lấy tất cả server templates
     const templates = await db.serverTemplate.findMany({
       orderBy: { name: 'asc' },
-    })
+    });
     
-    // Lấy thông tin về quyền truy cập của từng role
-    const roleTemplates = await db.roleServerTemplate.findMany({
-      include: {
-        role: true,
-      },
-    })
+    // Nếu cần thông tin region, chúng ta cần truy vấn riêng
+    let templatesWithRegion = templates;
     
-    // Trả về dữ liệu
-    return templates;
-  }, "Error fetching server templates");
+    // Nếu regionId tồn tại trong serverTemplate và model region tồn tại
+    if (regionModelExists) {
+      try {
+        // Kiểm tra xem serverTemplate có trường regionId không
+        const hasRegionId = await db.$queryRaw`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = 'cms' 
+          AND TABLE_NAME = 'ServerTemplate' 
+          AND COLUMN_NAME = 'regionId'
+        `;
+        
+        // Nếu có trường regionId, lấy thông tin region cho mỗi template
+        if (Array.isArray(hasRegionId) && hasRegionId.length > 0) {
+          templatesWithRegion = await Promise.all(templates.map(async (template) => {
+            if (template.regionId) {
+              const region = await db.serverRegion.findUnique({
+                where: { id: template.regionId },
+              });
+              return { ...template, region };
+            }
+            return template;
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching region data:", error);
+        // Vẫn trả về template mà không có region
+      }
+    }
+    
+    return NextResponse.json(templatesWithRegion);
+  } catch (error) {
+    console.error("Error fetching server templates:", error);
+    return NextResponse.json({ 
+      error: "Error fetching server templates", 
+      message: error.message,
+      stack: error.stack 
+    }, { status: 500 });
+  }
 }
 
 // POST /api/server-templates - Tạo server template mới
 export async function POST(request: Request) {
-  return apiHandler(async () => {
+  try {
     const session = await getServerSession()
     
     if (!session?.user) {
-      throw new Error("Unauthorized");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     
     // Kiểm tra quyền
     const userPermissions = session.user.permissions as string
     if (!hasPermission(userPermissions, PERMISSIONS.EDIT_SERVER_CONFIGS)) {
-      throw new Error("Forbidden");
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     
     // Lấy dữ liệu từ request
@@ -57,7 +102,7 @@ export async function POST(request: Request) {
     
     // Validate dữ liệu
     if (!data.name || data.cpu <= 0 || data.ram <= 0 || data.disk <= 0 || data.price < 0) {
-      throw new Error("Invalid data");
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 })
     }
     
     // Tạo server template mới
@@ -85,6 +130,9 @@ export async function POST(request: Request) {
       })
     }
     
-    return template;
-  }, "Error creating server template");
+    return NextResponse.json(template, { status: 201 })
+  } catch (error) {
+    console.error("Error creating server template:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 } 

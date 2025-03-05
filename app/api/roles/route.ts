@@ -1,95 +1,150 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/permissions"
-import { db } from "@/lib/db"
-import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
+import { db, hasModel } from "@/lib/db"
 
-// GET /api/roles - Lấy tất cả roles và thông tin về quyền hạn
+// GET /api/roles - Lấy tất cả roles
 export async function GET() {
-  // Kiểm tra kết nối trước khi xử lý
-  const isConnected = await checkDatabaseConnection();
-  if (!isConnected) {
-    return NextResponse.json({ error: "Database connection failed" }, { status: 503 });
-  }
-
-  return apiHandler(async () => {
-    const session = await getServerSession()
+  try {
+    // Kiểm tra kết nối cơ bản
+    await db.$queryRaw`SELECT 1`;
+    
+    // Liệt kê các models có sẵn để debug
+    const availableModels = Object.keys(db)
+      .filter(k => !k.startsWith('_') && typeof db[k] === 'object');
+    console.log("Available models:", availableModels);
+    
+    // Kiểm tra model
+    const roleModelExists = hasModel('role');
+    const templateModelExists = hasModel('serverTemplate');
+    const roleServerTemplateModelExists = hasModel('roleServerTemplate');
+    
+    if (!roleModelExists) {
+      return NextResponse.json({ 
+        error: "Role model not found", 
+        availableModels: availableModels
+      }, { status: 500 });
+    }
+    
+    const session = await getServerSession();
     
     if (!session?.user) {
-      throw new Error("Unauthorized");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     // Lấy tất cả roles
     const roles = await db.role.findMany({
       orderBy: { name: 'asc' },
-    })
+    });
     
-    // Lấy thông tin về server templates được phép cho mỗi role
-    const roleTemplates = await db.roleServerTemplate.findMany({
-      include: {
-        serverTemplate: true,
-      },
-    })
-    
-    // Tạo danh sách roles với thông tin về server templates
-    const rolesWithTemplates = roles.map(role => {
-      const templates = roleTemplates
-        .filter(rt => rt.roleId === role.id)
-        .map(rt => rt.serverTemplate.id)
+    // Nếu cả roleServerTemplate và serverTemplate đều tồn tại, lấy thông tin template cho mỗi role
+    if (roleServerTemplateModelExists && templateModelExists) {
+      // Lấy templates cho mỗi role và gộp vào kết quả
+      const rolesWithTemplates = await Promise.all(roles.map(async (role) => {
+        try {
+          // Lấy các liên kết role-template
+          const roleTemplates = await db.roleServerTemplate.findMany({
+            where: { roleId: role.id },
+          });
+          
+          // Lấy thông tin chi tiết về templates
+          if (roleTemplates.length > 0) {
+            const templateIds = roleTemplates.map(rt => rt.serverTemplateId);
+            const templates = await db.serverTemplate.findMany({
+              where: { id: { in: templateIds } },
+            });
+            
+            return { 
+              ...role, 
+              allowedServerTypes: templateIds,
+              serverTemplates: templates
+            };
+          }
+        } catch (error) {
+          console.error(`Error fetching templates for role ${role.id}:`, error);
+        }
+        
+        return { ...role, allowedServerTypes: [], serverTemplates: [] };
+      }));
       
-      return {
-        id: role.id,
-        name: role.name,
-        maxServers: role.maxServers,
-        allowedServerTypes: templates,
-      }
-    })
+      return NextResponse.json(rolesWithTemplates);
+    }
     
-    return rolesWithTemplates;
-  }, "Error fetching roles");
+    // Trả về roles mà không có thông tin về templates
+    return NextResponse.json(roles);
+  } catch (error) {
+    console.error("Error fetching roles:", error);
+    return NextResponse.json({ 
+      error: "Error fetching roles", 
+      message: error.message,
+      stack: error.stack 
+    }, { status: 500 });
+  }
 }
 
-export async function POST(req: Request) {
-  return apiHandler(async () => {
-    const session = await getServerSession()
-
-    if (!session?.user || !hasPermission(session.user.permissions, PERMISSIONS.CREATE_ROLE)) {
-      throw new Error("Unauthorized");
+// POST /api/roles - Tạo role mới
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession();
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const { name, description, permissions } = await req.json()
-
-    // Check if role already exists
-    const existingRole = await db.role.findUnique({
-      where: {
-        name,
-      },
-    })
-
+    
+    // Chỉ admin mới có thể tạo role mới
+    const userPermissions = session.user.permissions as string;
+    if (!userPermissions.includes('ADMIN') && !userPermissions.includes('CREATE_ROLE')) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    
+    // Lấy dữ liệu từ request
+    const data = await request.json();
+    
+    // Validate dữ liệu
+    if (!data.name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    
+    // Kiểm tra xem role đã tồn tại chưa
+    const existingRole = await db.role.findFirst({
+      where: { name: data.name },
+    });
+    
     if (existingRole) {
-      throw new Error("Role with this name already exists");
+      return NextResponse.json({ error: "Role already exists" }, { status: 409 });
     }
-
-    // Create the role
+    
+    // Tạo role mới
     const role = await db.role.create({
       data: {
-        name,
-        description,
-        permissions,
+        name: data.name,
+        description: data.description || '',
+        permissions: data.permissions || '',
+        maxServers: data.maxServers || 5,
+        isDefault: data.isDefault || false,
       },
-    })
-
-    // Create activity log
-    await db.activity.create({
-      data: {
-        action: "role_created",
-        userId: session.user.id,
-        details: { name, permissions },
-      },
-    })
-
-    return { message: "Role created successfully", role };
-  }, "Error creating role");
+    });
+    
+    // Tạo liên kết với server templates nếu có
+    if (data.allowedServerTypes && Array.isArray(data.allowedServerTypes) && data.allowedServerTypes.length > 0) {
+      const serverTemplateLinks = data.allowedServerTypes.map(templateId => ({
+        roleId: role.id,
+        serverTemplateId: templateId,
+        maxServers: data.maxServers || 5,
+      }));
+      
+      await db.roleServerTemplate.createMany({
+        data: serverTemplateLinks,
+      });
+    }
+    
+    return NextResponse.json(role, { status: 201 });
+  } catch (error) {
+    console.error("Error creating role:", error);
+    return NextResponse.json({ 
+      error: "Error creating role", 
+      message: error.message,
+      stack: error.stack 
+    }, { status: 500 });
+  }
 }
 

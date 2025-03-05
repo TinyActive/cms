@@ -2,63 +2,91 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
-import { db } from "@/lib/db"
-import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
+import { db, hasModel } from "@/lib/db"
 
 // GET /api/server-regions - Lấy tất cả server regions
 export async function GET() {
-  // Kiểm tra kết nối trước khi xử lý
-  const isConnected = await checkDatabaseConnection();
-  if (!isConnected) {
-    return NextResponse.json({ error: "Database connection failed" }, { status: 503 });
-  }
-
-  return apiHandler(async () => {
-    const session = await getServerSession()
+  try {
+    // Kiểm tra kết nối cơ bản
+    await db.$queryRaw`SELECT 1`;
+    
+    console.log("Available models:", Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object'));
+    
+    // Kiểm tra model
+    const regionModelExists = hasModel('ServerRegion');
+    
+    if (!regionModelExists) {
+      return NextResponse.json({ 
+        error: "ServerRegion model not found", 
+        availableModels: Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object') 
+      }, { status: 500 });
+    }
+    
+    const session = await getServerSession();
     
     if (!session?.user) {
-      throw new Error("Unauthorized");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     // Lấy tất cả server regions
     const regions = await db.serverRegion.findMany({
       orderBy: { name: 'asc' },
-    })
+    });
     
-    return regions;
-  }, "Error fetching server regions");
+    return NextResponse.json(regions);
+  } catch (error) {
+    console.error("Error fetching server regions:", error);
+    return NextResponse.json({ 
+      error: "Error fetching server regions", 
+      message: error.message,
+      stack: error.stack
+    }, { status: 500 });
+  }
 }
 
 // POST /api/server-regions - Tạo server region mới
 export async function POST(request: Request) {
-  return apiHandler(async () => {
-    const session = await getServerSession()
+  try {
+    // Kiểm tra kết nối cơ bản
+    await db.$queryRaw`SELECT 1`;
+    
+    // Kiểm tra model
+    const regionModelExists = hasModel('ServerRegion');
+    
+    if (!regionModelExists) {
+      return NextResponse.json({ 
+        error: "ServerRegion model not found", 
+        availableModels: Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object') 
+      }, { status: 500 });
+    }
+    
+    const session = await getServerSession();
     
     if (!session?.user) {
-      throw new Error("Unauthorized");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     // Kiểm tra quyền
-    const userPermissions = session.user.permissions as string
+    const userPermissions = session.user.permissions as string;
     if (!hasPermission(userPermissions, PERMISSIONS.EDIT_SERVER_CONFIGS)) {
-      throw new Error("Forbidden");
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     
     // Lấy dữ liệu từ request
-    const data = await request.json()
+    const data = await request.json();
     
     // Validate dữ liệu
     if (!data.name || !data.location) {
-      throw new Error("Invalid data");
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
     
     // Kiểm tra xem region đã tồn tại chưa
     const existingRegion = await db.serverRegion.findFirst({
       where: { name: data.name },
-    })
+    });
     
     if (existingRegion) {
-      throw new Error("Region already exists");
+      return NextResponse.json({ error: "Region already exists" }, { status: 409 });
     }
     
     // Tạo server region mới
@@ -69,8 +97,15 @@ export async function POST(request: Request) {
         isActive: data.isActive ?? true,
         isAdminOnly: data.isAdminOnly ?? false,
       },
-    })
+    });
     
-    return region;
-  }, "Error creating server region");
+    return NextResponse.json(region, { status: 201 });
+  } catch (error) {
+    console.error("Error creating server region:", error);
+    return NextResponse.json({ 
+      error: "Error creating server region", 
+      message: error.message,
+      stack: error.stack
+    }, { status: 500 });
+  }
 } 

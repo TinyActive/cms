@@ -1,3 +1,6 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,46 +10,49 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Người dùng và xác thực
 model User {
-  id                    String                 @id @default(cuid())
-  name                  String
-  email                 String                 @unique
-  password              String
-  emailVerified         DateTime?
-  image                 String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  roleId                String
-  balance               Float                  @default(0)
-  accounts              Account[]
-  activities            Activity[]
-  droplets              Droplet[]
-  sessions              Session[]
-  telegramNotifications TelegramNotification[]
-  transactions          Transaction[]
-  role                  Role                   @relation(fields: [roleId], references: [id])
-  vps                   VPS[]
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  permissions   String    @default("")
+  roleId        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  role          Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  accounts      Account[]
+  sessions      Session[]
+  activities    Activity[]
+  transactions  Transaction[]
+  vps           VPS[]
+  droplets      Droplet[]
 
-  @@index([roleId], map: "User_roleId_fkey")
+  @@map("users")
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String   @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?  @db.Text
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@index([userId], map: "Account_userId_fkey")
+  @@map("accounts")
 }
 
 model Session {
@@ -56,7 +62,7 @@ model Session {
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "Session_userId_fkey")
+  @@map("sessions")
 }
 
 model VerificationToken {
@@ -65,161 +71,196 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
+// Role và quyền hạn
 model Role {
-  id              String               @id @default(cuid())
-  name            String               @unique
-  description     String?
-  permissions     String               @db.Text
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  maxServers      Int                  @default(3)
-  serverTemplates RoleServerTemplate[]
-  users           User[]
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?   @db.Text
+  permissions String    @default("")
+  maxServers  Int       @default(5)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+  roleServerTemplates RoleServerTemplate[]
+
+  @@map("Role")
 }
 
-model Droplet {
-  id             String            @id @default(cuid())
-  digitalOceanId String?
-  name           String
-  status         String
-  ip             String?
-  region         String
-  size           String
-  image          String
-  cpu            Int               @default(0)
-  memory         Int               @default(0)
-  disk           Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  userId         String
-  activities     Activity[]
-  user           User              @relation(fields: [userId], references: [id])
-  firewalls      FirewallDroplet[]
+// Server regions (các khu vực triển khai máy chủ)
+model ServerRegion {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  location    String
+  isActive    Boolean   @default(true)
+  isAdminOnly Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  // Không có quan hệ trực tiếp với ServerTemplate
+  // do đó không định nghĩa relation ở đây
 
-  @@index([userId], map: "Droplet_userId_fkey")
+  @@map("ServerRegion")
 }
 
-model Firewall {
-  id             String            @id @default(cuid())
-  digitalOceanId String?
-  name           String
-  status         String
-  inboundRules   Json
-  outboundRules  Json
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  activities     Activity[]
-  droplets       FirewallDroplet[]
-}
-
-model FirewallDroplet {
-  id         String   @id @default(cuid())
-  firewallId String
-  dropletId  String
-  createdAt  DateTime @default(now())
-  droplet    Droplet  @relation(fields: [dropletId], references: [id], onDelete: Cascade)
-  firewall   Firewall @relation(fields: [firewallId], references: [id], onDelete: Cascade)
-
-  @@unique([firewallId, dropletId])
-  @@index([dropletId], map: "FirewallDroplet_dropletId_fkey")
-}
-
-model Activity {
-  id         String    @id @default(cuid())
-  action     String
-  details    Json?
-  createdAt  DateTime  @default(now())
-  userId     String
-  dropletId  String?
-  firewallId String?
-  droplet    Droplet?  @relation(fields: [dropletId], references: [id])
-  firewall   Firewall? @relation(fields: [firewallId], references: [id])
-  user       User      @relation(fields: [userId], references: [id])
-
-  @@index([dropletId], map: "Activity_dropletId_fkey")
-  @@index([firewallId], map: "Activity_firewallId_fkey")
-  @@index([userId], map: "Activity_userId_fkey")
-}
-
-model DigitalOceanToken {
-  id        String   @id @default(cuid())
-  token     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Transaction {
-  id        String   @id @default(cuid())
-  amount    Float
-  type      String
-  status    String
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-
-  @@index([userId], map: "Transaction_userId_fkey")
-}
-
-model VPS {
-  id             String   @id @default(cuid())
-  digitalOceanId String
-  name           String
-  status         String
-  ip             String?
-  region         String
-  size           String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  userId         String
-  user           User     @relation(fields: [userId], references: [id])
-
-  @@index([userId], map: "VPS_userId_fkey")
-}
-
-model TelegramNotification {
-  id     String @id @default(cuid())
-  chatId String
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  @@index([userId], map: "TelegramNotification_userId_fkey")
-}
-
+// Server templates (các cấu hình máy chủ tiêu chuẩn)
 model ServerTemplate {
-  id              String               @id @default(cuid())
-  name            String
-  cpu             Int
-  ram             Int
-  disk            Int
-  price           Float
-  isActive        Boolean              @default(true)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  rolePermissions RoleServerTemplate[]
+  id                String    @id @default(cuid())
+  name              String
+  // Cấu hình phiên bản cũ
+  cpu               Int?
+  ram               Int?
+  disk              Int?
+  price             Float?
+  
+  // Cấu hình phiên bản mới
+  cpuCount          Int?
+  memoryGB          Int?
+  storageGB         Int?
+  description       String?   @db.Text
+  
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // ServerTemplate không có trường regionId và không có mối quan hệ trực tiếp với ServerRegion
+  // Vì vậy chúng ta không định nghĩa relation với ServerRegion
+  
+  roleServerTemplates RoleServerTemplate[]
+
+  @@map("ServerTemplate")
 }
 
+// Bảng liên kết giữa Role và ServerTemplate
 model RoleServerTemplate {
-  id               String         @id @default(cuid())
+  id               String        @id @default(cuid())
   roleId           String
   serverTemplateId String
-  maxServers       Int            @default(0)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  role             Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  maxServers       Int           @default(5)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  
+  role             Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
   serverTemplate   ServerTemplate @relation(fields: [serverTemplateId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, serverTemplateId])
-  @@index([serverTemplateId], map: "RoleServerTemplate_serverTemplateId_fkey")
+  @@map("RoleServerTemplate")
 }
 
-model ServerRegion {
+// Lưu lịch sử hoạt động
+model Activity {
+  id        String   @id @default(cuid())
+  action    String
+  details   Json?
+  userId    String?
+  timestamp DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("Activity")
+}
+
+// Lưu token kết nối với Digital Ocean
+model DigitalOceanToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("DigitalOceanToken")
+}
+
+// Lưu thông tin giao dịch
+model Transaction {
   id          String   @id @default(cuid())
-  name        String
-  location    String
-  isActive    Boolean  @default(true)
-  isAdminOnly Boolean  @default(false)
+  userId      String
+  amount      Float
+  description String?
+  status      String
+  paymentId   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("Transaction")
+}
+
+// VPS (Máy chủ ảo)
+model VPS {
+  id          String   @id @default(cuid())
+  name        String
+  userId      String
+  ip          String?
+  status      String   @default("pending")
+  region      String?
+  cpu         Int?
+  ram         Int?
+  disk        Int?
+  price       Float?
+  renewalDate DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("VPS")
+}
+
+// Thông báo Telegram
+model TelegramNotification {
+  id        String   @id @default(cuid())
+  chatId    String
+  message   String   @db.Text
+  sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("TelegramNotification")
+}
+
+// Digital Ocean Droplet
+model Droplet {
+  id          String   @id @default(cuid())
+  doId        Int      @unique
+  name        String
+  userId      String
+  status      String
+  ip          String?
+  region      String?
+  size        String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firewalls   FirewallDroplet[]
+
+  @@map("Droplet")
+}
+
+// Firewall
+model Firewall {
+  id          String   @id @default(cuid())
+  doId        String   @unique
+  name        String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  droplets    FirewallDroplet[]
+
+  @@map("Firewall")
+}
+
+// Bảng liên kết Firewall và Droplet
+model FirewallDroplet {
+  id          String   @id @default(cuid())
+  firewallId  String
+  dropletId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  firewall    Firewall @relation(fields: [firewallId], references: [id], onDelete: Cascade)
+  droplet     Droplet  @relation(fields: [dropletId], references: [id], onDelete: Cascade)
+
+  @@unique([firewallId, dropletId])
+  @@map("FirewallDroplet")
 }
