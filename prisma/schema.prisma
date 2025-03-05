@@ -87,7 +87,7 @@ model Role {
   users       User[]
   roleServerTemplates RoleServerTemplate[]
 
-  @@map("Role")
+  @@map("roles")
 }
 
 // Server regions (các khu vực triển khai máy chủ)
@@ -102,7 +102,7 @@ model ServerRegion {
   // Không có quan hệ trực tiếp với ServerTemplate
   // do đó không định nghĩa relation ở đây
 
-  @@map("ServerRegion")
+  @@map("server_regions")
 }
 
 // Server templates (các cấu hình máy chủ tiêu chuẩn)
@@ -130,7 +130,7 @@ model ServerTemplate {
   
   roleServerTemplates RoleServerTemplate[]
 
-  @@map("ServerTemplate")
+  @@map("server_templates")
 }
 
 // Bảng liên kết giữa Role và ServerTemplate
@@ -146,7 +146,7 @@ model RoleServerTemplate {
   serverTemplate   ServerTemplate @relation(fields: [serverTemplateId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, serverTemplateId])
-  @@map("RoleServerTemplate")
+  @@map("role_server_templates")
 }
 
 // Lưu lịch sử hoạt động
@@ -158,7 +158,7 @@ model Activity {
   timestamp DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@map("Activity")
+  @@map("activities")
 }
 
 // Lưu token kết nối với Digital Ocean
@@ -169,7 +169,7 @@ model DigitalOceanToken {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("DigitalOceanToken")
+  @@map("digital_ocean_tokens")
 }
 
 // Lưu thông tin giao dịch
@@ -184,7 +184,7 @@ model Transaction {
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("Transaction")
+  @@map("transactions")
 }
 
 // VPS (Máy chủ ảo)
@@ -204,7 +204,7 @@ model VPS {
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("VPS")
+  @@map("vps")
 }
 
 // Thông báo Telegram
@@ -216,7 +216,7 @@ model TelegramNotification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("TelegramNotification")
+  @@map("telegram_notifications")
 }
 
 // Digital Ocean Droplet
@@ -235,7 +235,7 @@ model Droplet {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   firewalls   FirewallDroplet[]
 
-  @@map("Droplet")
+  @@map("droplets")
 }
 
 // Firewall
@@ -248,7 +248,7 @@ model Firewall {
   updatedAt   DateTime @updatedAt
   droplets    FirewallDroplet[]
 
-  @@map("Firewall")
+  @@map("firewalls")
 }
 
 // Bảng liên kết Firewall và Droplet

@@ -4,6 +4,20 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
 import { db, hasModel } from "@/lib/db"
 
+// Hàm xử lý BigInt trước khi serialize
+const serializeData = (data: any): any => {
+  if (typeof data !== 'object' || data === null) return data;
+  if (typeof data === 'bigint') return data.toString();
+  
+  if (Array.isArray(data)) {
+    return data.map(item => serializeData(item));
+  }
+  
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, serializeData(value)])
+  );
+};
+
 // GET /api/server-regions - Lấy tất cả server regions
 export async function GET() {
   try {
@@ -33,7 +47,8 @@ export async function GET() {
       orderBy: { name: 'asc' },
     });
     
-    return NextResponse.json(regions);
+    // Serialize data trước khi trả về
+    return NextResponse.json(serializeData(regions));
   } catch (error) {
     console.error("Error fetching server regions:", error);
     return NextResponse.json({ 
