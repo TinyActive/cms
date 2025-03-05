@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSession } from "next-auth/react"
-import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/permissions"
+import { hasPermission, hasAnyPermission } from "@/lib/permissions"
+import { PERMISSIONS, ROLES } from "@/lib/permissions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 // Mock data for server configurations
@@ -37,9 +37,27 @@ export default function ServerConfigPage() {
   const router = useRouter()
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
   const [selectedRole, setSelectedRole] = useState<number | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  // Check if user has permission to view this page
-  if (!session?.user?.permissions || !hasPermission(session.user.permissions, PERMISSIONS.VIEW_SERVER_CONFIGS)) {
+  // Kiểm tra xem người dùng có phải admin không
+  useEffect(() => {
+    if (session?.user?.permissions) {
+      try {
+        const permissions = JSON.parse(session.user.permissions as string);
+        // Nếu user có hầu hết các quyền, coi như là admin
+        if (permissions.includes('view_users') && 
+            permissions.includes('edit_user') && 
+            permissions.includes('view_settings')) {
+          setIsAdmin(true);
+        }
+      } catch (e) {
+        console.error("Error parsing permissions:", e);
+      }
+    }
+  }, [session]);
+
+  // Cho phép truy cập nếu là admin hoặc có quyền cụ thể
+  if (!session?.user?.permissions || (!isAdmin && !hasPermission(session.user.permissions, PERMISSIONS.VIEW_SERVER_CONFIGS))) {
     return (
       <div className="flex h-full items-center justify-center">
         <Card className="w-[600px]">

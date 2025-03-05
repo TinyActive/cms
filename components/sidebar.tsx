@@ -58,12 +58,6 @@ const sidebarLinks = [
     permission: PERMISSIONS.VIEW_SETTINGS,
   },
   {
-    title: "Server Configs",
-    href: "/server-config",
-    icon: Sliders,
-    permission: PERMISSIONS.VIEW_SERVER_CONFIGS,
-  },
-  {
     title: "Settings",
     href: "/settings",
     icon: Settings,
@@ -75,9 +69,48 @@ export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const userPermissions = session?.user?.permissions || ''
+  
+  // Kiểm tra xem người dùng có phải là admin không
+  let isAdmin = false;
+  if (userPermissions) {
+    try {
+      const permissions = JSON.parse(userPermissions as string);
+      if (permissions.includes('view_users') && 
+          permissions.includes('edit_user') && 
+          permissions.includes('view_settings')) {
+        isAdmin = true;
+      }
+    } catch (e) {
+      console.error("Error parsing permissions:", e);
+    }
+  }
+
+  // Thêm link Server Configs cho admin nếu chưa có trong sidebarLinks
+  let links = [...sidebarLinks];
+  
+  // Thêm Server Configs link cho admin nếu họ chưa có quyền VIEW_SERVER_CONFIGS
+  if (isAdmin) {
+    const hasServerConfigLink = links.some(link => link.href === '/server-config');
+    if (!hasServerConfigLink) {
+      // Tìm vị trí của Settings link để chèn trước đó
+      const settingsIndex = links.findIndex(link => link.href === '/settings');
+      const serverConfigLink = {
+        title: "Server Configs",
+        href: "/server-config",
+        icon: Sliders,
+        permission: null, // Admin luôn có thể truy cập
+      };
+      
+      if (settingsIndex !== -1) {
+        links.splice(settingsIndex, 0, serverConfigLink);
+      } else {
+        links.push(serverConfigLink);
+      }
+    }
+  }
 
   // Filter links based on user permissions
-  const filteredLinks = sidebarLinks.filter(
+  const filteredLinks = links.filter(
     (link) => link.permission === null || hasPermission(userPermissions, link.permission),
   )
 
