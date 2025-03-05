@@ -1,38 +1,58 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { PrismaClient } from "@prisma/client"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
 
+const prisma = new PrismaClient()
+
+// GET /api/roles - Lấy tất cả roles và thông tin về quyền hạn
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session?.user || !hasPermission(session.user.permissions, PERMISSIONS.VIEW_ROLES)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 403 })
+    const session = await getServerSession()
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-
-    const roles = await db.role.findMany({
+    
+    // Lấy tất cả roles
+    const roles = await prisma.role.findMany({
+      orderBy: { name: 'asc' },
+    })
+    
+    // Lấy thông tin về server templates được phép cho mỗi role
+    const roleTemplates = await prisma.roleServerTemplate.findMany({
       include: {
-        _count: {
-          select: {
-            users: true,
-          },
-        },
+        serverTemplate: true,
       },
     })
-
-    return NextResponse.json({ roles })
+    
+    // Tạo danh sách roles với thông tin về server templates
+    const rolesWithTemplates = roles.map(role => {
+      const templates = roleTemplates
+        .filter(rt => rt.roleId === role.id)
+        .map(rt => rt.serverTemplate.id)
+      
+      return {
+        id: role.id,
+        name: role.name,
+        maxServers: role.maxServers,
+        allowedServerTypes: templates,
+      }
+    })
+    
+    return NextResponse.json(rolesWithTemplates)
   } catch (error) {
     console.error("Error fetching roles:", error)
-    return NextResponse.json({ message: "Something went wrong" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession()
 
     if (!session?.user || !hasPermission(session.user.permissions, PERMISSIONS.CREATE_ROLE)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 })
@@ -41,7 +61,7 @@ export async function POST(req: Request) {
     const { name, description, permissions } = await req.json()
 
     // Check if role already exists
-    const existingRole = await db.role.findUnique({
+    const existingRole = await prisma.role.findUnique({
       where: {
         name,
       },
@@ -52,7 +72,7 @@ export async function POST(req: Request) {
     }
 
     // Create the role
-    const role = await db.role.create({
+    const role = await prisma.role.create({
       data: {
         name,
         description,
@@ -61,7 +81,7 @@ export async function POST(req: Request) {
     })
 
     // Create activity log
-    await db.activity.create({
+    await prisma.activity.create({
       data: {
         action: "role_created",
         userId: session.user.id,

@@ -15,29 +15,53 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "@/components/ui/use-toast"
 
-// Mock data for server configurations
-const mockServerTemplates = [
-  { id: 1, name: "Basic", cpu: 1, ram: 1, disk: 25, price: 5, availableRoles: ["admin", "user"] },
-  { id: 2, name: "Standard", cpu: 2, ram: 2, disk: 50, price: 10, availableRoles: ["admin", "user"] },
-  { id: 3, name: "Premium", cpu: 4, ram: 8, disk: 160, price: 40, availableRoles: ["admin"] },
-  { id: 4, name: "High Memory", cpu: 8, ram: 16, disk: 320, price: 80, availableRoles: ["admin"] },
-  { id: 5, name: "CPU Optimized", cpu: 8, ram: 8, disk: 160, price: 60, availableRoles: ["admin"] },
-]
+// Types for our data
+interface ServerTemplate {
+  id: string
+  name: string
+  cpu: number
+  ram: number
+  disk: number
+  price: number
+  isActive: boolean
+}
 
-const userRoles = [
-  { id: 1, name: "admin", maxServers: 10, allowedServerTypes: [1, 2, 3, 4, 5] },
-  { id: 2, name: "user", maxServers: 3, allowedServerTypes: [1, 2] },
-  { id: 3, name: "support", maxServers: 0, allowedServerTypes: [] },
-  { id: 4, name: "readonly", maxServers: 0, allowedServerTypes: [] },
-]
+interface UserRole {
+  id: string
+  name: string
+  maxServers: number
+  allowedServerTypes: string[]
+}
+
+interface ServerRegion {
+  id: string
+  name: string
+  location: string
+  isActive: boolean
+  isAdminOnly: boolean
+}
 
 export default function ServerConfigPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
-  const [selectedRole, setSelectedRole] = useState<number | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [serverTemplates, setServerTemplates] = useState<ServerTemplate[]>([])
+  const [userRoles, setUserRoles] = useState<UserRole[]>([])
+  const [serverRegions, setServerRegions] = useState<ServerRegion[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    name: "",
+    cpu: 1,
+    ram: 1,
+    disk: 25,
+    price: 5,
+    isActive: true,
+    availableRoles: [] as string[]
+  })
 
   // Kiểm tra xem người dùng có phải admin không
   useEffect(() => {
@@ -55,6 +79,47 @@ export default function ServerConfigPage() {
       }
     }
   }, [session]);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch server templates
+        const templatesRes = await fetch('/api/server-templates');
+        if (templatesRes.ok) {
+          const templatesData = await templatesRes.json();
+          setServerTemplates(templatesData);
+        }
+        
+        // Fetch user roles
+        const rolesRes = await fetch('/api/roles');
+        if (rolesRes.ok) {
+          const rolesData = await rolesRes.json();
+          setUserRoles(rolesData);
+        }
+        
+        // Fetch server regions
+        const regionsRes = await fetch('/api/server-regions');
+        if (regionsRes.ok) {
+          const regionsData = await regionsRes.json();
+          setServerRegions(regionsData);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load configuration data",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
 
   // Cho phép truy cập nếu là admin hoặc có quyền cụ thể
   if (!session?.user?.permissions || (!isAdmin && !hasPermission(session.user.permissions, PERMISSIONS.VIEW_SERVER_CONFIGS))) {
@@ -75,16 +140,220 @@ export default function ServerConfigPage() {
     )
   }
 
-  const handleSaveTemplate = (id: number | null) => {
-    // In a real app, this would save to the database
-    console.log("Saving template:", id)
-    setSelectedTemplate(null)
-  }
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === 'number' ? parseFloat(value) : value
+    });
+  };
 
-  const handleSaveRole = (id: number | null) => {
-    // In a real app, this would save to the database
-    console.log("Saving role:", id)
-    setSelectedRole(null)
+  // Handle checkbox changes
+  const handleCheckboxChange = (roleId: string, checked: boolean) => {
+    if (checked) {
+      setFormData({
+        ...formData,
+        availableRoles: [...formData.availableRoles, roleId]
+      });
+    } else {
+      setFormData({
+        ...formData,
+        availableRoles: formData.availableRoles.filter(id => id !== roleId)
+      });
+    }
+  };
+
+  // Handle template selection for editing
+  const handleSelectTemplate = (templateId: string) => {
+    const template = serverTemplates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(templateId);
+      // Get roles that have access to this template
+      const templateRoles = userRoles
+        .filter(role => role.allowedServerTypes.includes(templateId))
+        .map(role => role.id);
+      
+      setFormData({
+        name: template.name,
+        cpu: template.cpu,
+        ram: template.ram,
+        disk: template.disk,
+        price: template.price,
+        isActive: template.isActive,
+        availableRoles: templateRoles
+      });
+    }
+  };
+
+  // Handle saving template changes
+  const handleSaveTemplate = async () => {
+    try {
+      setLoading(true);
+      
+      const endpoint = selectedTemplate 
+        ? `/api/server-templates/${selectedTemplate}` 
+        : '/api/server-templates';
+      
+      const method = selectedTemplate ? 'PUT' : 'POST';
+      
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          cpu: Number(formData.cpu),
+          ram: Number(formData.ram),
+          disk: Number(formData.disk),
+          price: Number(formData.price),
+        }),
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: `Server template ${selectedTemplate ? 'updated' : 'created'} successfully`,
+        });
+        
+        // Refresh data
+        const templatesRes = await fetch('/api/server-templates');
+        if (templatesRes.ok) {
+          const templatesData = await templatesRes.json();
+          setServerTemplates(templatesData);
+        }
+        
+        // Reset form
+        setSelectedTemplate(null);
+        setFormData({
+          name: "",
+          cpu: 1,
+          ram: 1,
+          disk: 25,
+          price: 5,
+          isActive: true,
+          availableRoles: []
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save template');
+      }
+    } catch (error) {
+      console.error("Error saving template:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save template",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle role updates
+  const handleSaveRole = async (roleId: string, maxServers: number, allowedTemplates: string[]) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/roles/${roleId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          maxServers,
+          allowedServerTypes: allowedTemplates
+        }),
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Role settings updated successfully",
+        });
+        
+        // Refresh roles data
+        const rolesRes = await fetch('/api/roles');
+        if (rolesRes.ok) {
+          const rolesData = await rolesRes.json();
+          setUserRoles(rolesData);
+        }
+        
+        setSelectedRole(null);
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update role');
+      }
+    } catch (error) {
+      console.error("Error updating role:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update role",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle region updates
+  const handleUpdateRegion = async (regionId: string, isActive: boolean, isAdminOnly: boolean) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/server-regions/${regionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isActive,
+          isAdminOnly
+        }),
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Region settings updated successfully",
+        });
+        
+        // Refresh regions data
+        const regionsRes = await fetch('/api/server-regions');
+        if (regionsRes.ok) {
+          const regionsData = await regionsRes.json();
+          setServerRegions(regionsData);
+        }
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update region');
+      }
+    } catch (error) {
+      console.error("Error updating region:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update region",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="w-[600px]">
+          <CardHeader>
+            <CardTitle>Loading</CardTitle>
+            <CardDescription>
+              Loading server configuration data...
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -119,24 +388,24 @@ export default function ServerConfigPage() {
                       <TableHead>RAM (GB)</TableHead>
                       <TableHead>Disk (GB)</TableHead>
                       <TableHead>Price ($)</TableHead>
-                      <TableHead>Available To</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockServerTemplates.map((template) => (
+                    {serverTemplates.map((template) => (
                       <TableRow key={template.id}>
                         <TableCell className="font-medium">{template.name}</TableCell>
                         <TableCell>{template.cpu}</TableCell>
                         <TableCell>{template.ram}</TableCell>
                         <TableCell>{template.disk}</TableCell>
                         <TableCell>${template.price}/mo</TableCell>
-                        <TableCell>{template.availableRoles.join(", ")}</TableCell>
+                        <TableCell>{template.isActive ? 'Active' : 'Inactive'}</TableCell>
                         <TableCell>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setSelectedTemplate(template.id)}
+                            onClick={() => handleSelectTemplate(template.id)}
                           >
                             Edit
                           </Button>
@@ -146,58 +415,93 @@ export default function ServerConfigPage() {
                   </TableBody>
                 </Table>
 
-                <Button>Add New Template</Button>
+                <Button onClick={() => {
+                  setSelectedTemplate(null);
+                  setFormData({
+                    name: "",
+                    cpu: 1,
+                    ram: 1,
+                    disk: 25,
+                    price: 5,
+                    isActive: true,
+                    availableRoles: []
+                  });
+                }}>
+                  Add New Template
+                </Button>
               </div>
             </CardContent>
           </Card>
 
-          {selectedTemplate && (
+          {selectedTemplate !== null || formData.name !== "" ? (
             <Card>
               <CardHeader>
                 <CardTitle>
-                  Edit Template: {mockServerTemplates.find(t => t.id === selectedTemplate)?.name}
+                  {selectedTemplate ? `Edit Template: ${formData.name}` : 'Create New Template'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="template-name">Template Name</Label>
+                    <Label htmlFor="name">Template Name</Label>
                     <Input 
-                      id="template-name" 
-                      defaultValue={mockServerTemplates.find(t => t.id === selectedTemplate)?.name}
+                      id="name" 
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="template-price">Price ($ per month)</Label>
+                    <Label htmlFor="price">Price ($ per month)</Label>
                     <Input 
-                      id="template-price" 
+                      id="price" 
+                      name="price"
                       type="number" 
-                      defaultValue={mockServerTemplates.find(t => t.id === selectedTemplate)?.price}
+                      value={formData.price}
+                      onChange={handleInputChange}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="template-cpu">CPU Cores</Label>
+                    <Label htmlFor="cpu">CPU Cores</Label>
                     <Input 
-                      id="template-cpu" 
+                      id="cpu" 
+                      name="cpu"
                       type="number" 
-                      defaultValue={mockServerTemplates.find(t => t.id === selectedTemplate)?.cpu}
+                      value={formData.cpu}
+                      onChange={handleInputChange}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="template-ram">RAM (GB)</Label>
+                    <Label htmlFor="ram">RAM (GB)</Label>
                     <Input 
-                      id="template-ram" 
+                      id="ram" 
+                      name="ram"
                       type="number" 
-                      defaultValue={mockServerTemplates.find(t => t.id === selectedTemplate)?.ram}
+                      value={formData.ram}
+                      onChange={handleInputChange}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="template-disk">Disk (GB)</Label>
+                    <Label htmlFor="disk">Disk (GB)</Label>
                     <Input 
-                      id="template-disk" 
+                      id="disk" 
+                      name="disk"
                       type="number" 
-                      defaultValue={mockServerTemplates.find(t => t.id === selectedTemplate)?.disk}
+                      value={formData.disk}
+                      onChange={handleInputChange}
                     />
+                  </div>
+                  <div className="space-y-2 flex items-center">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="isActive" 
+                        checked={formData.isActive}
+                        onCheckedChange={(checked) => 
+                          setFormData({...formData, isActive: checked as boolean})
+                        }
+                      />
+                      <Label htmlFor="isActive">Active</Label>
+                    </div>
                   </div>
                 </div>
 
@@ -208,10 +512,9 @@ export default function ServerConfigPage() {
                       <div key={role.id} className="flex items-center space-x-2">
                         <Checkbox 
                           id={`role-${role.id}`} 
-                          defaultChecked={
-                            mockServerTemplates
-                              .find(t => t.id === selectedTemplate)?.availableRoles
-                              .includes(role.name)
+                          checked={formData.availableRoles.includes(role.id)}
+                          onCheckedChange={(checked) => 
+                            handleCheckboxChange(role.id, checked as boolean)
                           }
                         />
                         <Label htmlFor={`role-${role.id}`}>{role.name}</Label>
@@ -221,8 +524,23 @@ export default function ServerConfigPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="outline" onClick={() => setSelectedTemplate(null)}>Cancel</Button>
-                <Button onClick={() => handleSaveTemplate(selectedTemplate)}>Save Changes</Button>
+                <Button variant="outline" onClick={() => {
+                  setSelectedTemplate(null);
+                  setFormData({
+                    name: "",
+                    cpu: 1,
+                    ram: 1,
+                    disk: 25,
+                    price: 5,
+                    isActive: true,
+                    availableRoles: []
+                  });
+                }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveTemplate} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </Button>
               </CardFooter>
             </Card>
           )}
@@ -255,8 +573,9 @@ export default function ServerConfigPage() {
                         <TableCell>{role.maxServers}</TableCell>
                         <TableCell>
                           {role.allowedServerTypes.length > 0 
-                            ? role.allowedServerTypes
-                                .map(id => mockServerTemplates.find(t => t.id === id)?.name)
+                            ? serverTemplates
+                                .filter(t => role.allowedServerTypes.includes(t.id))
+                                .map(t => t.name)
                                 .join(", ")
                             : "None"}
                         </TableCell>
@@ -298,7 +617,7 @@ export default function ServerConfigPage() {
                   <div>
                     <Label className="mb-2 block">Allowed Server Templates</Label>
                     <div className="space-y-2">
-                      {mockServerTemplates.map((template) => (
+                      {serverTemplates.map((template) => (
                         <div key={template.id} className="flex items-center space-x-2">
                           <Checkbox 
                             id={`template-${template.id}`} 
@@ -319,7 +638,19 @@ export default function ServerConfigPage() {
               </CardContent>
               <CardFooter className="flex justify-between">
                 <Button variant="outline" onClick={() => setSelectedRole(null)}>Cancel</Button>
-                <Button onClick={() => handleSaveRole(selectedRole)}>Save Changes</Button>
+                <Button onClick={() => {
+                  const role = userRoles.find(r => r.id === selectedRole);
+                  if (role) {
+                    const maxServers = parseInt((document.getElementById('role-max-servers') as HTMLInputElement).value);
+                    const allowedTemplates = serverTemplates
+                      .filter(t => (document.getElementById(`template-${t.id}`) as HTMLInputElement).checked)
+                      .map(t => t.id);
+                    
+                    handleSaveRole(selectedRole, maxServers, allowedTemplates);
+                  }
+                }} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </Button>
               </CardFooter>
             </Card>
           )}
@@ -343,42 +674,50 @@ export default function ServerConfigPage() {
                       <TableHead>Location</TableHead>
                       <TableHead>Available</TableHead>
                       <TableHead>Admin Only</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell className="font-medium">nyc1</TableCell>
-                      <TableCell>New York, USA</TableCell>
-                      <TableCell><Switch defaultChecked /></TableCell>
-                      <TableCell><Checkbox /></TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">sfo2</TableCell>
-                      <TableCell>San Francisco, USA</TableCell>
-                      <TableCell><Switch defaultChecked /></TableCell>
-                      <TableCell><Checkbox /></TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">ams3</TableCell>
-                      <TableCell>Amsterdam, Netherlands</TableCell>
-                      <TableCell><Switch defaultChecked /></TableCell>
-                      <TableCell><Checkbox defaultChecked /></TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">sgp1</TableCell>
-                      <TableCell>Singapore</TableCell>
-                      <TableCell><Switch defaultChecked /></TableCell>
-                      <TableCell><Checkbox /></TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">lon1</TableCell>
-                      <TableCell>London, UK</TableCell>
-                      <TableCell><Switch /></TableCell>
-                      <TableCell><Checkbox /></TableCell>
-                    </TableRow>
+                    {serverRegions.map((region) => (
+                      <TableRow key={region.id}>
+                        <TableCell className="font-medium">{region.name}</TableCell>
+                        <TableCell>{region.location}</TableCell>
+                        <TableCell>
+                          <Switch 
+                            checked={region.isActive} 
+                            onCheckedChange={(checked) => {
+                              handleUpdateRegion(region.id, checked, region.isAdminOnly);
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox 
+                            checked={region.isAdminOnly}
+                            onCheckedChange={(checked) => {
+                              handleUpdateRegion(region.id, region.isActive, checked as boolean);
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Toggle both values at once
+                              handleUpdateRegion(
+                                region.id, 
+                                !region.isActive, 
+                                !region.isAdminOnly
+                              );
+                            }}
+                          >
+                            Toggle All
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
-                <Button>Save Region Settings</Button>
               </div>
             </CardContent>
           </Card>

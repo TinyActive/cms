@@ -74,6 +74,8 @@ model Role {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   users       User[]
+  serverTemplates RoleServerTemplate[]
+  maxServers  Int      @default(3)
 }
 
 model Droplet {
@@ -169,5 +171,41 @@ model TelegramNotification {
   chatId    String
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model ServerTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  cpu           Int
+  ram           Int
+  disk          Int
+  price         Float
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  rolePermissions RoleServerTemplate[]
+}
+
+model RoleServerTemplate {
+  id             String   @id @default(cuid())
+  roleId         String
+  serverTemplateId String
+  maxServers     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  role           Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  serverTemplate ServerTemplate @relation(fields: [serverTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, serverTemplateId])
+}
+
+model ServerRegion {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  isActive      Boolean  @default(true)
+  isAdminOnly   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
