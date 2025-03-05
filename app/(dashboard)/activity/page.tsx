@@ -1,7 +1,8 @@
 import { Metadata } from "next"
 import { Activity } from "lucide-react"
 import { db } from "@/lib/db"
-import { auth } from "@/auth"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -35,7 +36,7 @@ async function getActivities() {
 }
 
 export default async function ActivityPage() {
-  const session = await auth()
+  const session = await getServerSession(authOptions)
   const activities = await getActivities()
 
   // Transform activities to include formatted data for display
