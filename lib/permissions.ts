@@ -1,7 +1,7 @@
 type Permission = string;
 type Role = string;
 
-const PERMISSIONS: { [key: string]: Permission } = {
+export const PERMISSIONS: { [key: string]: Permission } = {
   // Droplet permissions
   VIEW_DROPLETS: "view_droplets",
   CREATE_DROPLET: "create_droplet",
@@ -32,14 +32,14 @@ const PERMISSIONS: { [key: string]: Permission } = {
   EDIT_SETTINGS: "edit_settings",
 };
 
-const ROLES: { [key: string]: Role } = {
+export const ROLES: { [key: string]: Role } = {
   ADMIN: "admin",
   USER: "user",
   SUPPORT: "support",
   READONLY: "readonly",
 };
 
-const DEFAULT_ROLE_PERMISSIONS: { [key: string]: Permission[] } = {
+export const DEFAULT_ROLE_PERMISSIONS: { [key: string]: Permission[] } = {
   [ROLES.ADMIN]: Object.values(PERMISSIONS),
   [ROLES.USER]: [
     PERMISSIONS.VIEW_DROPLETS,
@@ -59,7 +59,7 @@ const DEFAULT_ROLE_PERMISSIONS: { [key: string]: Permission[] } = {
   [ROLES.READONLY]: [PERMISSIONS.VIEW_DROPLETS, PERMISSIONS.VIEW_FIREWALLS],
 };
 
-function hasPermission(userPermissions: string, permission: string): boolean {
+export function hasPermission(userPermissions: string, permission: string): boolean {
   if (!userPermissions) return false;
   try {
     const permissions = JSON.parse(userPermissions) as string[];
@@ -69,7 +69,7 @@ function hasPermission(userPermissions: string, permission: string): boolean {
   }
 }
 
-function hasAnyPermission(userPermissions: string, permissions: string[]): boolean {
+export function hasAnyPermission(userPermissions: string, permissions: string[]): boolean {
   if (!userPermissions) return false;
   try {
     const userPerms = JSON.parse(userPermissions) as string[];
@@ -79,7 +79,7 @@ function hasAnyPermission(userPermissions: string, permissions: string[]): boole
   }
 }
 
-function hasAllPermissions(userPermissions: string, permissions: string[]): boolean {
+export function hasAllPermissions(userPermissions: string, permissions: string[]): boolean {
   if (!userPermissions) return false;
   try {
     const userPerms = JSON.parse(userPermissions) as string[];
@@ -88,13 +88,4 @@ function hasAllPermissions(userPermissions: string, permissions: string[]): bool
     return false;
   }
 }
-
-export = {
-  PERMISSIONS,
-  ROLES,
-  DEFAULT_ROLE_PERMISSIONS,
-  hasPermission,
-  hasAnyPermission,
-  hasAllPermissions
-};
 
