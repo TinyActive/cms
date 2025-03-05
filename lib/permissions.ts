@@ -1,4 +1,7 @@
-export const PERMISSIONS = {
+type Permission = string;
+type Role = string;
+
+const PERMISSIONS: { [key: string]: Permission } = {
   // Droplet permissions
   VIEW_DROPLETS: "view_droplets",
   CREATE_DROPLET: "create_droplet",
@@ -27,16 +30,16 @@ export const PERMISSIONS = {
   // Settings permissions
   VIEW_SETTINGS: "view_settings",
   EDIT_SETTINGS: "edit_settings",
-}
+};
 
-export const ROLES = {
+const ROLES: { [key: string]: Role } = {
   ADMIN: "admin",
   USER: "user",
   SUPPORT: "support",
   READONLY: "readonly",
-}
+};
 
-export const DEFAULT_ROLE_PERMISSIONS = {
+const DEFAULT_ROLE_PERMISSIONS: { [key: string]: Permission[] } = {
   [ROLES.ADMIN]: Object.values(PERMISSIONS),
   [ROLES.USER]: [
     PERMISSIONS.VIEW_DROPLETS,
@@ -54,20 +57,29 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_USERS,
   ],
   [ROLES.READONLY]: [PERMISSIONS.VIEW_DROPLETS, PERMISSIONS.VIEW_FIREWALLS],
+};
+
+function hasPermission(userPermissions: string, permission: string): boolean {
+  const permissions = JSON.parse(userPermissions || '[]') as string[];
+  return permissions.includes(permission);
 }
 
-export function hasPermission(userPermissions: string, permission: string): boolean {
-  const permissions = JSON.parse(userPermissions || '[]') as string[]
-  return permissions.includes(permission)
+function hasAnyPermission(userPermissions: string, permissions: string[]): boolean {
+  const userPerms = JSON.parse(userPermissions || '[]') as string[];
+  return permissions.some((permission) => userPerms.includes(permission));
 }
 
-export function hasAnyPermission(userPermissions: string, permissions: string[]): boolean {
-  const userPerms = JSON.parse(userPermissions || '[]') as string[]
-  return permissions.some((permission) => userPerms.includes(permission))
+function hasAllPermissions(userPermissions: string, permissions: string[]): boolean {
+  const userPerms = JSON.parse(userPermissions || '[]') as string[];
+  return permissions.every((permission) => userPerms.includes(permission));
 }
 
-export function hasAllPermissions(userPermissions: string, permissions: string[]): boolean {
-  const userPerms = JSON.parse(userPermissions || '[]') as string[]
-  return permissions.every((permission) => userPerms.includes(permission))
-}
+export = {
+  PERMISSIONS,
+  ROLES,
+  DEFAULT_ROLE_PERMISSIONS,
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions
+};
 

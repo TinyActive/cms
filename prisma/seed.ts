@@ -1,24 +1,24 @@
 import { PrismaClient } from "@prisma/client"
 import { hash } from "bcryptjs"
-import { ROLES, DEFAULT_ROLE_PERMISSIONS } from "../lib/permissions"
+import permissions from "../lib/permissions"
 
 const prisma = new PrismaClient()
 
 async function main() {
   // Create roles
-  for (const [roleName, permissions] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+  for (const [roleName, perms] of Object.entries(permissions.DEFAULT_ROLE_PERMISSIONS)) {
     await prisma.role.upsert({
       where: { name: roleName },
-      update: { permissions: JSON.stringify(permissions) },
+      update: { permissions: JSON.stringify(perms) },
       create: {
         name: roleName,
-        permissions: JSON.stringify(permissions),
+        permissions: JSON.stringify(perms),
       },
     })
   }
 
   // Create admin user
-  const adminRole = await prisma.role.findUnique({ where: { name: ROLES.ADMIN } })
+  const adminRole = await prisma.role.findUnique({ where: { name: permissions.ROLES.ADMIN } })
   if (!adminRole) throw new Error("Admin role not found")
 
   const adminPassword = process.env.ADMIN_PASSWORD || "adminpassword123"
@@ -37,7 +37,7 @@ async function main() {
   })
 
   // Create regular user
-  const userRole = await prisma.role.findUnique({ where: { name: ROLES.USER } })
+  const userRole = await prisma.role.findUnique({ where: { name: permissions.ROLES.USER } })
   if (!userRole) throw new Error("User role not found")
 
   const userPassword = "userpassword123"
