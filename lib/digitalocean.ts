@@ -168,3 +168,200 @@ export async function testDigitalOceanToken(token: string): Promise<{
   }
 }
 
+// Các loại dữ liệu cho Firewall API
+export type FirewallRule = {
+  protocol: string;
+  ports?: string;
+  addresses?: {
+    addresses?: string[];
+    droplet_ids?: number[];
+    load_balancer_uids?: string[];
+    kubernetes_ids?: string[];
+    tags?: string[];
+  };
+};
+
+export type InboundRule = FirewallRule;
+export type OutboundRule = FirewallRule;
+
+export type Firewall = {
+  id?: string;
+  name: string;
+  status?: string;
+  created_at?: string;
+  inbound_rules: InboundRule[];
+  outbound_rules: OutboundRule[];
+  droplet_ids?: number[];
+  tags?: string[];
+};
+
+// Lấy danh sách tất cả firewalls
+export async function getFirewalls(): Promise<Firewall[]> {
+  try {
+    const data = await callDigitalOceanAPI<{ firewalls: Firewall[] }>('/firewalls');
+    return data.firewalls || [];
+  } catch (error: any) {
+    console.error("Error fetching firewalls:", error);
+    throw new Error(`Failed to fetch firewalls: ${error.message}`);
+  }
+}
+
+// Lấy thông tin chi tiết của một firewall
+export async function getFirewall(id: string): Promise<Firewall> {
+  try {
+    const data = await callDigitalOceanAPI<{ firewall: Firewall }>(`/firewalls/${id}`);
+    return data.firewall;
+  } catch (error: any) {
+    console.error(`Error fetching firewall ${id}:`, error);
+    throw new Error(`Failed to fetch firewall: ${error.message}`);
+  }
+}
+
+// Tạo một firewall mới
+export async function createFirewall(firewallData: Firewall): Promise<Firewall> {
+  try {
+    const data = await callDigitalOceanAPI<{ firewall: Firewall }>(
+      '/firewalls',
+      'POST',
+      firewallData
+    );
+    return data.firewall;
+  } catch (error: any) {
+    console.error("Error creating firewall:", error);
+    throw new Error(`Failed to create firewall: ${error.message}`);
+  }
+}
+
+// Cập nhật thông tin firewall
+export async function updateFirewall(id: string, firewallData: Firewall): Promise<Firewall> {
+  try {
+    const data = await callDigitalOceanAPI<{ firewall: Firewall }>(
+      `/firewalls/${id}`,
+      'PUT',
+      firewallData
+    );
+    return data.firewall;
+  } catch (error: any) {
+    console.error(`Error updating firewall ${id}:`, error);
+    throw new Error(`Failed to update firewall: ${error.message}`);
+  }
+}
+
+// Xóa một firewall
+export async function deleteFirewall(id: string): Promise<void> {
+  try {
+    await callDigitalOceanAPI(`/firewalls/${id}`, 'DELETE');
+  } catch (error: any) {
+    console.error(`Error deleting firewall ${id}:`, error);
+    throw new Error(`Failed to delete firewall: ${error.message}`);
+  }
+}
+
+// Thêm droplets vào firewall
+export async function addDropletsToFirewall(firewallId: string, dropletIds: number[]): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/firewalls/${firewallId}/droplets`,
+      'POST',
+      { droplet_ids: dropletIds }
+    );
+  } catch (error: any) {
+    console.error(`Error adding droplets to firewall ${firewallId}:`, error);
+    throw new Error(`Failed to add droplets to firewall: ${error.message}`);
+  }
+}
+
+// Xóa droplets khỏi firewall
+export async function removeDropletsFromFirewall(firewallId: string, dropletIds: number[]): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/firewalls/${firewallId}/droplets`,
+      'DELETE',
+      { droplet_ids: dropletIds }
+    );
+  } catch (error: any) {
+    console.error(`Error removing droplets from firewall ${firewallId}:`, error);
+    throw new Error(`Failed to remove droplets from firewall: ${error.message}`);
+  }
+}
+
+// Thêm tags vào firewall
+export async function addTagsToFirewall(firewallId: string, tags: string[]): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/firewalls/${firewallId}/tags`,
+      'POST',
+      { tags }
+    );
+  } catch (error: any) {
+    console.error(`Error adding tags to firewall ${firewallId}:`, error);
+    throw new Error(`Failed to add tags to firewall: ${error.message}`);
+  }
+}
+
+// Xóa tags khỏi firewall
+export async function removeTagsFromFirewall(firewallId: string, tags: string[]): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/firewalls/${firewallId}/tags`,
+      'DELETE',
+      { tags }
+    );
+  } catch (error: any) {
+    console.error(`Error removing tags from firewall ${firewallId}:`, error);
+    throw new Error(`Failed to remove tags from firewall: ${error.message}`);
+  }
+}
+
+// Thêm rules vào firewall
+export async function addRulesToFirewall(
+  firewallId: string, 
+  inboundRules?: InboundRule[],
+  outboundRules?: OutboundRule[]
+): Promise<void> {
+  try {
+    const payload: any = {};
+    if (inboundRules && inboundRules.length > 0) {
+      payload.inbound_rules = inboundRules;
+    }
+    if (outboundRules && outboundRules.length > 0) {
+      payload.outbound_rules = outboundRules;
+    }
+    
+    await callDigitalOceanAPI(
+      `/firewalls/${firewallId}/rules`,
+      'POST',
+      payload
+    );
+  } catch (error: any) {
+    console.error(`Error adding rules to firewall ${firewallId}:`, error);
+    throw new Error(`Failed to add rules to firewall: ${error.message}`);
+  }
+}
+
+// Xóa rules khỏi firewall
+export async function removeRulesFromFirewall(
+  firewallId: string,
+  inboundRules?: InboundRule[],
+  outboundRules?: OutboundRule[]
+): Promise<void> {
+  try {
+    const payload: any = {};
+    if (inboundRules && inboundRules.length > 0) {
+      payload.inbound_rules = inboundRules;
+    }
+    if (outboundRules && outboundRules.length > 0) {
+      payload.outbound_rules = outboundRules;
+    }
+    
+    await callDigitalOceanAPI(
+      `/firewalls/${firewallId}/rules`,
+      'DELETE',
+      payload
+    );
+  } catch (error: any) {
+    console.error(`Error removing rules from firewall ${firewallId}:`, error);
+    throw new Error(`Failed to remove rules from firewall: ${error.message}`);
+  }
+}
+

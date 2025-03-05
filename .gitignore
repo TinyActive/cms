@@ -27,3 +27,4 @@ yarn-error.log*
 next-env.d.ts
 *.log
 *.log.*
+DigitalOcean-public.v2.yaml

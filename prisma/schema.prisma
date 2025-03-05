@@ -240,13 +240,16 @@ model Droplet {
 
 // Firewall
 model Firewall {
-  id          String   @id @default(cuid())
-  doId        String   @unique
-  name        String
-  status      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  droplets    FirewallDroplet[]
+  id            String   @id @default(cuid())
+  doId          String   @unique
+  name          String
+  status        String
+  inboundRules  Json?    // Mảng các quy tắc đầu vào
+  outboundRules Json?    // Mảng các quy tắc đầu ra
+  tags          Json?    // Các tag được gán cho firewall
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  droplets      FirewallDroplet[]
 
   @@map("firewalls")
 }
