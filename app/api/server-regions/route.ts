@@ -13,7 +13,7 @@ export async function GET() {
     console.log("Available models:", Object.keys(db).filter(k => !k.startsWith('_') && typeof db[k] === 'object'));
     
     // Kiểm tra model
-    const regionModelExists = hasModel('ServerRegion');
+    const regionModelExists = hasModel('serverRegion');
     
     if (!regionModelExists) {
       return NextResponse.json({ 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     await db.$queryRaw`SELECT 1`;
     
     // Kiểm tra model
-    const regionModelExists = hasModel('ServerRegion');
+    const regionModelExists = hasModel('serverRegion');
     
     if (!regionModelExists) {
       return NextResponse.json({ 

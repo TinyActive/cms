@@ -9,6 +9,7 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/auth/login",
@@ -26,34 +27,36 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const user = await db.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-          include: {
-            role: true,
-          },
-        })
+        try {
+          const user = await db.user.findUnique({
+            where: {
+              email: credentials.email,
+            },
+            include: {
+              role: true,
+            },
+          })
 
-        if (!user) {
+          if (!user || !user.password) {
+            return null
+          }
+
+          const isPasswordValid = await compare(credentials.password, user.password)
+
+          if (!isPasswordValid) {
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role?.name || null,
+            permissions: user.role?.permissions || ''
+          }
+        } catch (error) {
+          console.error("Auth error:", error)
           return null
-        }
-
-        const isPasswordValid = await compare(credentials.password, user.password)
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        console.log("User role:", user.role)
-        console.log("User permissions:", user.role.permissions)
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role.name,
-          permissions: user.role.permissions
         }
       },
     }),
@@ -61,29 +64,23 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        return {
-          ...token,
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          permissions: user.permissions
-        }
+        token.id = user.id
+        token.email = user.email
+        token.name = user.name
+        token.role = user.role
+        token.permissions = user.permissions
       }
       return token
     },
     async session({ session, token }) {
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: token.id as string,
-          email: token.email as string,
-          name: token.name as string,
-          role: token.role as string,
-          permissions: token.permissions as string
-        }
+      if (session.user) {
+        session.user.id = token.id as string
+        session.user.email = token.email as string
+        session.user.name = token.name as string
+        session.user.role = token.role as string
+        session.user.permissions = token.permissions as string
       }
+      return session
     },
   },
 }
