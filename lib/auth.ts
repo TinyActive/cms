@@ -45,6 +45,9 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        console.log("User role:", user.role)
+        console.log("User permissions:", user.role.permissions)
+
         return {
           id: user.id,
           name: user.name,
