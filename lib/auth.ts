@@ -53,8 +53,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           email: user.email,
           role: user.role.name,
-          permissions: user.role.permissions,
-          roleId: user.roleId,
+          permissions: user.role.permissions
         }
       },
     }),
@@ -68,7 +67,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          permissions: user.permissions,
+          permissions: user.permissions
         }
       }
       return token
@@ -82,7 +81,7 @@ export const authOptions: NextAuthOptions = {
           email: token.email as string,
           name: token.name as string,
           role: token.role as string,
-          permissions: token.permissions as string,
+          permissions: token.permissions as string
         }
       }
     },
