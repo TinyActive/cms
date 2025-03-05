@@ -725,4 +725,4 @@ export default function ServerConfigPage() {
       </Tabs>
     </div>
   )
-} 
+}
