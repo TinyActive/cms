@@ -66,16 +66,27 @@ export default async function RolesPage() {
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Permissions:</h3>
                 <div className="flex flex-wrap gap-2">
-                  {role.permissions.length > 0 ? (
-                    role.permissions.slice(0, 5).map((permission, index) => (
-                      <Badge key={index} variant="secondary">
-                        {permission.replace(/_/g, " ")}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No permissions assigned</span>
-                  )}
-                  {role.permissions.length > 5 && <Badge variant="outline">+{role.permissions.length - 5} more</Badge>}
+                  {(() => {
+                    try {
+                      const permissionArray = JSON.parse(role.permissions) as string[];
+                      return permissionArray.length > 0 ? (
+                        <>
+                          {permissionArray.slice(0, 5).map((permission, index) => (
+                            <Badge key={index} variant="secondary">
+                              {permission.replace(/_/g, " ")}
+                            </Badge>
+                          ))}
+                          {permissionArray.length > 5 && (
+                            <Badge variant="outline">+{permissionArray.length - 5} more</Badge>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No permissions assigned</span>
+                      );
+                    } catch (e) {
+                      return <span className="text-sm text-muted-foreground">Invalid permissions format</span>;
+                    }
+                  })()}
                 </div>
               </div>
             </CardContent>
