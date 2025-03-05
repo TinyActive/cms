@@ -60,18 +60,33 @@ const DEFAULT_ROLE_PERMISSIONS: { [key: string]: Permission[] } = {
 };
 
 function hasPermission(userPermissions: string, permission: string): boolean {
-  const permissions = JSON.parse(userPermissions || '[]') as string[];
-  return permissions.includes(permission);
+  if (!userPermissions) return false;
+  try {
+    const permissions = JSON.parse(userPermissions) as string[];
+    return permissions.includes(permission);
+  } catch (e) {
+    return false;
+  }
 }
 
 function hasAnyPermission(userPermissions: string, permissions: string[]): boolean {
-  const userPerms = JSON.parse(userPermissions || '[]') as string[];
-  return permissions.some((permission) => userPerms.includes(permission));
+  if (!userPermissions) return false;
+  try {
+    const userPerms = JSON.parse(userPermissions) as string[];
+    return permissions.some((permission) => userPerms.includes(permission));
+  } catch (e) {
+    return false;
+  }
 }
 
 function hasAllPermissions(userPermissions: string, permissions: string[]): boolean {
-  const userPerms = JSON.parse(userPermissions || '[]') as string[];
-  return permissions.every((permission) => userPerms.includes(permission));
+  if (!userPermissions) return false;
+  try {
+    const userPerms = JSON.parse(userPermissions) as string[];
+    return permissions.every((permission) => userPerms.includes(permission));
+  } catch (e) {
+    return false;
+  }
 }
 
 export = {
