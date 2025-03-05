@@ -3,14 +3,21 @@ import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
 import { db } from "@/lib/db"
+import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
 
 // GET /api/roles - Lấy tất cả roles và thông tin về quyền hạn
 export async function GET() {
-  try {
+  // Kiểm tra kết nối trước khi xử lý
+  const isConnected = await checkDatabaseConnection();
+  if (!isConnected) {
+    return NextResponse.json({ error: "Database connection failed" }, { status: 503 });
+  }
+
+  return apiHandler(async () => {
     const session = await getServerSession()
     
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      throw new Error("Unauthorized");
     }
     
     // Lấy tất cả roles
@@ -39,19 +46,16 @@ export async function GET() {
       }
     })
     
-    return NextResponse.json(rolesWithTemplates)
-  } catch (error) {
-    console.error("Error fetching roles:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+    return rolesWithTemplates;
+  }, "Error fetching roles");
 }
 
 export async function POST(req: Request) {
-  try {
+  return apiHandler(async () => {
     const session = await getServerSession()
 
     if (!session?.user || !hasPermission(session.user.permissions, PERMISSIONS.CREATE_ROLE)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 403 })
+      throw new Error("Unauthorized");
     }
 
     const { name, description, permissions } = await req.json()
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
     })
 
     if (existingRole) {
-      return NextResponse.json({ message: "Role with this name already exists" }, { status: 409 })
+      throw new Error("Role with this name already exists");
     }
 
     // Create the role
@@ -85,10 +89,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({ message: "Role created successfully", role }, { status: 201 })
-  } catch (error) {
-    console.error("Error creating role:", error)
-    return NextResponse.json({ message: "Something went wrong" }, { status: 500 })
-  }
+    return { message: "Role created successfully", role };
+  }, "Error creating role");
 }
 

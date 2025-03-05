@@ -3,14 +3,21 @@ import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
 import { db } from "@/lib/db"
+import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
 
 // GET /api/server-templates - Lấy tất cả server templates
 export async function GET() {
-  try {
+  // Kiểm tra kết nối trước khi xử lý
+  const isConnected = await checkDatabaseConnection();
+  if (!isConnected) {
+    return NextResponse.json({ error: "Database connection failed" }, { status: 503 });
+  }
+
+  return apiHandler(async () => {
     const session = await getServerSession()
     
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      throw new Error("Unauthorized");
     }
     
     // Lấy tất cả server templates
@@ -26,26 +33,23 @@ export async function GET() {
     })
     
     // Trả về dữ liệu
-    return NextResponse.json(templates)
-  } catch (error) {
-    console.error("Error fetching server templates:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+    return templates;
+  }, "Error fetching server templates");
 }
 
 // POST /api/server-templates - Tạo server template mới
 export async function POST(request: Request) {
-  try {
+  return apiHandler(async () => {
     const session = await getServerSession()
     
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      throw new Error("Unauthorized");
     }
     
     // Kiểm tra quyền
     const userPermissions = session.user.permissions as string
     if (!hasPermission(userPermissions, PERMISSIONS.EDIT_SERVER_CONFIGS)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      throw new Error("Forbidden");
     }
     
     // Lấy dữ liệu từ request
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
     
     // Validate dữ liệu
     if (!data.name || data.cpu <= 0 || data.ram <= 0 || data.disk <= 0 || data.price < 0) {
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 })
+      throw new Error("Invalid data");
     }
     
     // Tạo server template mới
@@ -81,9 +85,6 @@ export async function POST(request: Request) {
       })
     }
     
-    return NextResponse.json(template, { status: 201 })
-  } catch (error) {
-    console.error("Error creating server template:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+    return template;
+  }, "Error creating server template");
 } 

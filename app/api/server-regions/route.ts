@@ -3,14 +3,21 @@ import { getServerSession } from "next-auth"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/permissions"
 import { db } from "@/lib/db"
+import { apiHandler, checkDatabaseConnection } from "@/lib/api-utils"
 
 // GET /api/server-regions - Lấy tất cả server regions
 export async function GET() {
-  try {
+  // Kiểm tra kết nối trước khi xử lý
+  const isConnected = await checkDatabaseConnection();
+  if (!isConnected) {
+    return NextResponse.json({ error: "Database connection failed" }, { status: 503 });
+  }
+
+  return apiHandler(async () => {
     const session = await getServerSession()
     
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      throw new Error("Unauthorized");
     }
     
     // Lấy tất cả server regions
@@ -18,26 +25,23 @@ export async function GET() {
       orderBy: { name: 'asc' },
     })
     
-    return NextResponse.json(regions)
-  } catch (error) {
-    console.error("Error fetching server regions:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+    return regions;
+  }, "Error fetching server regions");
 }
 
 // POST /api/server-regions - Tạo server region mới
 export async function POST(request: Request) {
-  try {
+  return apiHandler(async () => {
     const session = await getServerSession()
     
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      throw new Error("Unauthorized");
     }
     
     // Kiểm tra quyền
     const userPermissions = session.user.permissions as string
     if (!hasPermission(userPermissions, PERMISSIONS.EDIT_SERVER_CONFIGS)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      throw new Error("Forbidden");
     }
     
     // Lấy dữ liệu từ request
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
     
     // Validate dữ liệu
     if (!data.name || !data.location) {
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 })
+      throw new Error("Invalid data");
     }
     
     // Kiểm tra xem region đã tồn tại chưa
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
     })
     
     if (existingRegion) {
-      return NextResponse.json({ error: "Region already exists" }, { status: 409 })
+      throw new Error("Region already exists");
     }
     
     // Tạo server region mới
@@ -67,9 +71,6 @@ export async function POST(request: Request) {
       },
     })
     
-    return NextResponse.json(region, { status: 201 })
-  } catch (error) {
-    console.error("Error creating server region:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+    return region;
+  }, "Error creating server region");
 } 
