@@ -56,7 +56,7 @@ async function main() {
   })
 
   // Create sample VPS for admin
-  await prisma.vps.create({
+  await prisma.vPS.create({
     data: {
       digitalOceanId: "123456789",
       name: "Admin VPS",
@@ -69,7 +69,7 @@ async function main() {
   })
 
   // Create sample VPS for regular user
-  await prisma.vps.create({
+  await prisma.vPS.create({
     data: {
       digitalOceanId: "987654321",
       name: "User VPS",
