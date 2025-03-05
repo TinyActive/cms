@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Activity, CreditCard, Database, Home, Lock, Server, Settings, Shield, Users } from "lucide-react"
+import { Activity, CreditCard, Database, Home, Lock, Server, Settings, Shield, Users, Sliders } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -56,6 +56,12 @@ const sidebarLinks = [
     href: "/api-keys",
     icon: Lock,
     permission: PERMISSIONS.VIEW_SETTINGS,
+  },
+  {
+    title: "Server Configs",
+    href: "/server-config",
+    icon: Sliders,
+    permission: PERMISSIONS.VIEW_SERVER_CONFIGS,
   },
   {
     title: "Settings",

@@ -30,6 +30,10 @@ export const PERMISSIONS: { [key: string]: Permission } = {
   // Settings permissions
   VIEW_SETTINGS: "view_settings",
   EDIT_SETTINGS: "edit_settings",
+  
+  // Server configuration permissions
+  VIEW_SERVER_CONFIGS: "view_server_configs",
+  EDIT_SERVER_CONFIGS: "edit_server_configs",
 };
 
 export const ROLES: { [key: string]: Role } = {
