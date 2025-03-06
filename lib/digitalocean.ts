@@ -365,3 +365,215 @@ export async function removeRulesFromFirewall(
   }
 }
 
+// Types cho API Droplets
+export type DropletSize = {
+  slug: string;
+  memory: number;
+  vcpus: number;
+  disk: number;
+  transfer: number;
+  price_monthly: number;
+  price_hourly: number;
+  regions: string[];
+  available: boolean;
+  description: string;
+};
+
+export type Region = {
+  slug: string;
+  name: string;
+  sizes: string[];
+  available: boolean;
+  features: string[];
+};
+
+export type Image = {
+  id: number;
+  name: string;
+  type: string;
+  distribution: string;
+  slug: string;
+  public: boolean;
+  regions: string[];
+  min_disk_size: number;
+  size_gigabytes: number;
+  description: string;
+  status: string;
+};
+
+export type DropletCreateRequest = {
+  name: string;
+  region: string;
+  size: string;
+  image: string | number;
+  ssh_keys?: number[];
+  backups?: boolean;
+  ipv6?: boolean;
+  monitoring?: boolean;
+  tags?: string[];
+  user_data?: string;
+};
+
+export type Droplet = {
+  id: number;
+  name: string;
+  memory: number;
+  vcpus: number;
+  disk: number;
+  locked: boolean;
+  status: string;
+  kernel: any;
+  created_at: string;
+  features: string[];
+  backup_ids: number[];
+  next_backup_window: any;
+  snapshot_ids: number[];
+  image: Image;
+  volume_ids: string[];
+  size: DropletSize;
+  size_slug: string;
+  networks: {
+    v4?: {
+      ip_address: string;
+      netmask: string;
+      gateway: string;
+      type: string;
+    }[];
+    v6?: {
+      ip_address: string;
+      netmask: number;
+      gateway: string;
+      type: string;
+    }[];
+  };
+  region: Region;
+  tags: string[];
+};
+
+// Lấy danh sách các sizes (cấu hình máy chủ) có sẵn từ DigitalOcean
+export async function getSizes(): Promise<DropletSize[]> {
+  try {
+    const data = await callDigitalOceanAPI<{ sizes: DropletSize[] }>('/sizes');
+    return data.sizes.filter(size => size.available) || [];
+  } catch (error: any) {
+    console.error("Error fetching sizes:", error);
+    throw new Error(`Failed to fetch sizes: ${error.message}`);
+  }
+}
+
+// Lấy danh sách các regions (vùng) có sẵn từ DigitalOcean
+export async function getRegions(): Promise<Region[]> {
+  try {
+    const data = await callDigitalOceanAPI<{ regions: Region[] }>('/regions');
+    return data.regions.filter(region => region.available) || [];
+  } catch (error: any) {
+    console.error("Error fetching regions:", error);
+    throw new Error(`Failed to fetch regions: ${error.message}`);
+  }
+}
+
+// Lấy danh sách các images (hệ điều hành) có sẵn từ DigitalOcean
+export async function getImages(type: string = 'distribution'): Promise<Image[]> {
+  try {
+    const data = await callDigitalOceanAPI<{ images: Image[] }>(`/images?type=${type}`);
+    return data.images || [];
+  } catch (error: any) {
+    console.error("Error fetching images:", error);
+    throw new Error(`Failed to fetch images: ${error.message}`);
+  }
+}
+
+// Lấy danh sách tất cả droplets
+export async function getDroplets(): Promise<Droplet[]> {
+  try {
+    const data = await callDigitalOceanAPI<{ droplets: Droplet[] }>('/droplets');
+    return data.droplets || [];
+  } catch (error: any) {
+    console.error("Error fetching droplets:", error);
+    throw new Error(`Failed to fetch droplets: ${error.message}`);
+  }
+}
+
+// Lấy thông tin chi tiết của một droplet
+export async function getDroplet(id: number): Promise<Droplet> {
+  try {
+    const data = await callDigitalOceanAPI<{ droplet: Droplet }>(`/droplets/${id}`);
+    return data.droplet;
+  } catch (error: any) {
+    console.error(`Error fetching droplet ${id}:`, error);
+    throw new Error(`Failed to fetch droplet: ${error.message}`);
+  }
+}
+
+// Tạo một droplet mới
+export async function createDroplet(dropletData: DropletCreateRequest): Promise<Droplet> {
+  try {
+    const data = await callDigitalOceanAPI<{ droplet: Droplet }>(
+      '/droplets',
+      'POST',
+      dropletData
+    );
+    return data.droplet;
+  } catch (error: any) {
+    console.error("Error creating droplet:", error);
+    throw new Error(`Failed to create droplet: ${error.message}`);
+  }
+}
+
+// Xóa một droplet
+export async function deleteDroplet(id: number): Promise<void> {
+  try {
+    await callDigitalOceanAPI(`/droplets/${id}`, 'DELETE');
+  } catch (error: any) {
+    console.error(`Error deleting droplet ${id}:`, error);
+    throw new Error(`Failed to delete droplet: ${error.message}`);
+  }
+}
+
+// Khởi động lại droplet
+export async function rebootDroplet(id: number): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/droplets/${id}/actions`,
+      'POST',
+      { type: 'reboot' }
+    );
+  } catch (error: any) {
+    console.error(`Error rebooting droplet ${id}:`, error);
+    throw new Error(`Failed to reboot droplet: ${error.message}`);
+  }
+}
+
+// Tắt droplet
+export async function powerOffDroplet(id: number): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/droplets/${id}/actions`,
+      'POST',
+      { type: 'power_off' }
+    );
+  } catch (error: any) {
+    console.error(`Error powering off droplet ${id}:`, error);
+    throw new Error(`Failed to power off droplet: ${error.message}`);
+  }
+}
+
+// Bật droplet
+export async function powerOnDroplet(id: number): Promise<void> {
+  try {
+    await callDigitalOceanAPI(
+      `/droplets/${id}/actions`,
+      'POST',
+      { type: 'power_on' }
+    );
+  } catch (error: any) {
+    console.error(`Error powering on droplet ${id}:`, error);
+    throw new Error(`Failed to power on droplet: ${error.message}`);
+  }
+}
+
+// Tính giá từ giá gốc DigitalOcean cộng thêm 20%
+export function calculatePrice(originalPrice: number): number {
+  return originalPrice * 1.2; // Cộng thêm 20%
+}
+

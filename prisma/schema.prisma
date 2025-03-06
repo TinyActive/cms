@@ -21,6 +21,7 @@ model User {
   permissions   String    @default("")
   roleId        String?
   isActive      Boolean   @default(true)
+  balance       Float     @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   role          Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
@@ -109,6 +110,7 @@ model ServerRegion {
 model ServerTemplate {
   id                String    @id @default(cuid())
   name              String
+  slug              String    @unique
   // Cấu hình phiên bản cũ
   cpu               Int?
   ram               Int?
@@ -221,19 +223,25 @@ model TelegramNotification {
 
 // Digital Ocean Droplet
 model Droplet {
-  id          String   @id @default(cuid())
-  doId        Int      @unique
-  name        String
-  userId      String
-  status      String
-  ip          String?
-  region      String?
-  size        String?
-  image       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firewalls   FirewallDroplet[]
+  id            String    @id @default(cuid())
+  doId          Int       @unique
+  name          String
+  userId        String
+  status        String
+  ip            String?
+  region        String?
+  size          String?
+  image         String?
+  cpu           Int?
+  memory        Int?      // RAM (GB)
+  disk          Int?      // Storage (GB)
+  originalPrice Float?    // Giá gốc từ DigitalOcean
+  price         Float?    // Giá sau khi tính thêm 20%
+  nextBillingDate DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firewalls     FirewallDroplet[]
 
   @@map("droplets")
 }
